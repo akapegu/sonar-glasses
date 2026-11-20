@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# Unattended pod pipeline: wait for the cache build, wait (bounded) for the W&B key,
-# train, evaluate the best checkpoint on validation, then stop the pod so the GPU stops billing.
+# Unattended pod pipeline: wait for the cache build, train (MLflow + CSV logging), evaluate the
+# best checkpoint on validation, then stop the pod so the GPU stops billing.
 # The network volume (/workspace: cache, runs, logs) survives the stop.
 #
 #   tmux new-session -d -s train "bash scripts/pod_pipeline.sh configs/baseline_vs.yaml"
 #
-# Env: WAIT_KEY_MIN (default 60) minutes to wait for /workspace/.secrets/wandb_key before
-#      falling back to CSV logging; AUTO_STOP=0 keeps the pod running afterwards;
-#      EXTRA_ARGS passed to train.py (e.g. "--set split=final").
+# Env: AUTO_STOP=0 keeps the pod running afterwards; EXTRA_ARGS passed to train.py
+#      (e.g. "--set split=final").
+# The body is one function, so bash parses the whole file before running anything: the
+# `git pull` below can then update this script without corrupting the run in progress.
 set -uo pipefail
+
+main() {
 CONFIG=${1:-configs/baseline_vs.yaml}
 cd "$(dirname "$0")/.."
 LOG=/workspace/logs
@@ -25,12 +28,6 @@ until grep -q "all requested zips done" "$LOG/fetch.log" 2>/dev/null; do
   sleep 60
 done
 echo "[$(stamp)] cache complete"
-
-for _ in $(seq 1 "${WAIT_KEY_MIN:-60}"); do
-  [ -f /workspace/.secrets/wandb_key ] && break
-  sleep 60
-done
-[ -f /workspace/.secrets/wandb_key ] && echo "[$(stamp)] W&B key found" || echo "[$(stamp)] no W&B key; CSV logging only"
 
 git pull -q || echo "[$(stamp)] git pull failed; using the checked-out commit"
 echo "[$(stamp)] training $CONFIG at commit $(git rev-parse --short HEAD)"
@@ -59,3 +56,7 @@ if [ "${AUTO_STOP:-1}" = "1" ] && [ -n "${RUNPOD_POD_ID:-}" ]; then
     || curl -fsS -X POST -H "Authorization: Bearer ${RUNPOD_API_KEY:-}" "https://rest.runpod.io/v1/pods/$RUNPOD_POD_ID/stop" \
     || echo "[$(stamp)] could not stop the pod automatically; stop it from the console"
 fi
+}
+
+main "$@"
+exit $?

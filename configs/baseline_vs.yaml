@@ -37,5 +37,5 @@ eval:
   every: 5                          # validate every N epochs (dev split only)
 
 log:
-  backend: wandb                    # wandb | mlflow | csv  (CSV is always written too)
+  backend: mlflow                   # mlflow | wandb | csv  (CSV is always written too); runs in <runs_dir>/mlruns
   project: sonar-glasses

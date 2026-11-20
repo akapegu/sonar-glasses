@@ -1,0 +1,41 @@
+# Voiced-only training (paper Table 3, first row).
+run_name: baseline_v
+cache: /workspace/cache/v1          # override with --set cache=... locally
+runs_dir: /workspace/runs
+split: dev                          # dev = train 1-131 / val 132-140; final = train 1-140, no val
+modes: [voiced]                     # voiced-only (paper: 16.9% voiced / 78.4% silent)
+
+tokenizer:
+  vocab_size: 1000                  # SentencePiece Unigram; + CTC blank = 1,001 classes
+
+model:
+  range_stride: 2                   # UNKNOWN in paper: 2 = standard 2D stride, 1 = time-only
+
+train:
+  epochs: 200
+  batch_size: 16
+  lr: 2.0e-4
+  weight_decay: 1.0e-4
+  warmup_frac: 0.05                 # UNKNOWN in paper: linear warm-up over the first 5% of steps
+  final_lr_frac: 0.01               # UNKNOWN in paper: exponential decay to 1% of peak
+  grad_clip: 5.0
+  amp: bf16                         # bf16 | fp16 | none (CUDA only)
+  seed: 0
+  num_workers: 8
+  stats_max_utts: 4000
+
+aug:
+  concat_p: 0.5                     # UNKNOWN in paper
+  concat_max: 3
+  max_frames: 3000                  # 15 s cap
+  range_masks: 2
+  range_mask_max: 8                 # UNKNOWN in paper
+  time_masks: 3
+  time_mask_max: 40                 # UNKNOWN in paper (0.2 s)
+
+eval:
+  every: 5                          # validate every N epochs (dev split only)
+
+log:
+  backend: wandb                    # wandb | mlflow | csv  (CSV is always written too)
+  project: sonar-glasses

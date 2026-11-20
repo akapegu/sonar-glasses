@@ -1,0 +1,234 @@
+{
+ "meta": {
+  "data": "/Users/pegu/Downloads/sonispeech_datasets/data/SoniSpeech_05_of_09",
+  "when": "2026-11-20 02:36"
+ },
+ "inventory": {
+  "split_counts": {
+   "voiced_train": 19,
+   "voiced_eval": 4,
+   "silent_train": 15,
+   "silent_eval": 2
+  },
+  "by_ext": {
+   ".json": 351469,
+   ".wav": 5330588204
+  }
+ },
+ "header_ok": true,
+ "n_utt_ok": true,
+ "first_start_ok": true,
+ "gap_zero_frac_min": 1.0,
+ "utt_zero_frac_max": 0.00026,
+ "start_offset_ms": {
+  "median": 0.0,
+  "p05": -0.45549999999999996,
+  "p95": 0.45
+ },
+ "mode_stats": {
+  "voiced": {
+   "n": 1150,
+   "dur_mean": 5.185276521739131,
+   "dur_std": 1.657595170607916,
+   "dur_min": 1.9649999999999963,
+   "dur_max": 10.568000000000001,
+   "w_mean": 14.195652173913043,
+   "w_std": 5.163162012369313,
+   "p_over_15s": 0.0
+  },
+  "silent": {
+   "n": 850,
+   "dur_mean": 5.47124,
+   "dur_std": 1.8641558054802938,
+   "dur_min": 1.7680000000000007,
+   "dur_max": 11.642000000000024,
+   "w_mean": 14.496470588235294,
+   "w_std": 5.48865025856992,
+   "p_over_15s": 0.0
+  }
+ },
+ "words_all": {
+  "mean": 14.3235,
+  "std": 5.306019953788338
+ },
+ "vocab_size": 2515,
+ "eval_text_in_train": 0,
+ "eval_n": 300,
+ "eval_id_in_train": 0,
+ "voiced_silent_pairs": [
+  [
+   "voiced_train/session_115",
+   "silent_train/session_115",
+   50
+  ],
+  [
+   "voiced_eval/session_013",
+   "silent_eval/session_013",
+   50
+  ]
+ ],
+ "duplicate_texts": 100,
+ "faulty_mismatch": [],
+ "lowband_rel": {
+  "voiced": 0.14841836127631647,
+  "silent": 6.986667105427841e-05
+ },
+ "corrupt_channels": [
+  [
+   "voiced_train/session_004",
+   1,
+   1,
+   2
+  ],
+  [
+   "silent_train/session_126",
+   1,
+   8,
+   514
+  ]
+ ],
+ "corrupt_ids": {
+  "voiced_train/session_004": [
+   [],
+   [
+    "train_00182"
+   ]
+  ],
+  "silent_train/session_126": [
+   [],
+   [
+    "train_06255",
+    "train_06259",
+    "train_06260",
+    "train_06261",
+    "train_06262",
+    "train_06267",
+    "train_06268",
+    "train_06269"
+   ]
+  ]
+ },
+ "transcripts_past_audio": [],
+ "echo_profiles": {
+  "voiced_train/session_013": {
+   "start_pos": 170,
+   "shape": [
+    2,
+    2,
+    54254,
+    500
+   ],
+   "dtype": "float64",
+   "diff_shape": [
+    2,
+    2,
+    54254,
+    500
+   ],
+   "diff_dtype": "float64",
+   "runtime_s": 12.4,
+   "max_rss_bytes": 4228104192,
+   "npy_bytes_each": 868064000,
+   "n_frames": 54254,
+   "audio_s": 271.27,
+   "utt_frames": 46440,
+   "_cache": "cache/eda/zip05/voiced_train__session_013"
+  },
+  "silent_train/session_043": {
+   "start_pos": 351,
+   "shape": [
+    2,
+    2,
+    58851,
+    500
+   ],
+   "dtype": "float64",
+   "diff_shape": [
+    2,
+    2,
+    58851,
+    500
+   ],
+   "diff_dtype": "float64",
+   "runtime_s": 12.5,
+   "max_rss_bytes": 4010901504,
+   "npy_bytes_each": 941616000,
+   "n_frames": 58851,
+   "audio_s": 294.255,
+   "utt_frames": 48921,
+   "_cache": "cache/eda/zip05/silent_train__session_043"
+  }
+ },
+ "window_info": {
+  "voiced_train/session_013": {
+   "best_start": 225,
+   "best_frac": 0.7263905710533926,
+   "frac_240_320": 0.6772621743920809,
+   "frac_0_80": 0.0,
+   "peak_bins": [
+    252,
+    239,
+    238,
+    232
+   ],
+   "healthy": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "motion_peak_bins": [
+    261,
+    254,
+    251,
+    245
+   ]
+  },
+  "silent_train/session_043": {
+   "best_start": 225,
+   "best_frac": 0.7705210011993718,
+   "frac_240_320": 0.710839274282029,
+   "frac_0_80": 0.0,
+   "peak_bins": [
+    252,
+    239,
+    238,
+    227
+   ],
+   "healthy": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "motion_peak_bins": [
+    259,
+    254,
+    248,
+    245
+   ]
+  }
+ },
+ "crop_suggestion": [
+  225,
+  305
+ ],
+ "spectrogram": {
+  "voiced": {
+   "session": "voiced_train/session_004",
+   "window": [
+    2.5,
+    3.5
+   ],
+   "utt": "train_00150"
+  },
+  "silent": {
+   "session": "silent_train/session_007",
+   "window": [
+    2.5,
+    3.5
+   ],
+   "utt": "train_00300"
+  }
+ }
+}

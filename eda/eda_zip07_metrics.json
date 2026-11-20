@@ -1,0 +1,205 @@
+{
+ "meta": {
+  "data": "/Users/pegu/Downloads/sonispeech_datasets/data/SoniSpeech_07_of_09",
+  "when": "2026-11-20 04:46"
+ },
+ "inventory": {
+  "split_counts": {
+   "voiced_train": 19,
+   "silent_train": 20,
+   "silent_eval": 1
+  },
+  "by_ext": {
+   ".json": 352927,
+   ".wav": 5341811964
+  }
+ },
+ "header_ok": true,
+ "n_utt_ok": true,
+ "first_start_ok": true,
+ "gap_zero_frac_min": 1.0,
+ "utt_zero_frac_max": 0.0002828,
+ "start_offset_ms": {
+  "median": 0.0,
+  "p05": -0.45,
+  "p95": 0.42000000000000004
+ },
+ "mode_stats": {
+  "voiced": {
+   "n": 950,
+   "dur_mean": 5.339461052631579,
+   "dur_std": 1.6820308977883507,
+   "dur_min": 1.995999999999981,
+   "dur_max": 11.880999999999997,
+   "w_mean": 14.623157894736842,
+   "w_std": 5.280858236301308,
+   "p_over_15s": 0.0
+  },
+  "silent": {
+   "n": 1050,
+   "dur_mean": 5.397953333333333,
+   "dur_std": 1.7405578149966838,
+   "dur_min": 2.134999999999991,
+   "dur_max": 10.979,
+   "w_mean": 14.236190476190476,
+   "w_std": 5.230808438100154,
+   "p_over_15s": 0.0
+  }
+ },
+ "words_all": {
+  "mean": 14.42,
+  "std": 5.258193606173132
+ },
+ "vocab_size": 2452,
+ "eval_text_in_train": 0,
+ "eval_n": 50,
+ "eval_id_in_train": 0,
+ "voiced_silent_pairs": [
+  [
+   "voiced_train/session_027",
+   "silent_train/session_027",
+   50
+  ],
+  [
+   "voiced_train/session_031",
+   "silent_train/session_031",
+   50
+  ],
+  [
+   "voiced_train/session_073",
+   "silent_train/session_073",
+   50
+  ]
+ ],
+ "duplicate_texts": 150,
+ "faulty_mismatch": [],
+ "lowband_rel": {
+  "voiced": 0.15544159893237053,
+  "silent": 6.660262150173407e-05
+ },
+ "corrupt_channels": [],
+ "corrupt_ids": {},
+ "transcripts_past_audio": [],
+ "echo_profiles": {
+  "voiced_train/session_079": {
+   "start_pos": 107,
+   "shape": [
+    2,
+    2,
+    58739,
+    500
+   ],
+   "dtype": "float64",
+   "diff_shape": [
+    2,
+    2,
+    58739,
+    500
+   ],
+   "diff_dtype": "float64",
+   "runtime_s": 14.6,
+   "max_rss_bytes": 3665412096,
+   "npy_bytes_each": 939824000,
+   "n_frames": 58739,
+   "audio_s": 293.695,
+   "utt_frames": 48503,
+   "_cache": "cache/eda/zip07/voiced_train__session_079"
+  },
+  "silent_train/session_050": {
+   "start_pos": 138,
+   "shape": [
+    2,
+    2,
+    56531,
+    500
+   ],
+   "dtype": "float64",
+   "diff_shape": [
+    2,
+    2,
+    56531,
+    500
+   ],
+   "diff_dtype": "float64",
+   "runtime_s": 13.5,
+   "max_rss_bytes": 4083695616,
+   "npy_bytes_each": 904496000,
+   "n_frames": 56531,
+   "audio_s": 282.655,
+   "utt_frames": 49910,
+   "_cache": "cache/eda/zip07/silent_train__session_050"
+  }
+ },
+ "window_info": {
+  "voiced_train/session_079": {
+   "best_start": 223,
+   "best_frac": 0.6924299750963279,
+   "frac_240_320": 0.6478013891424326,
+   "frac_0_80": 0.0,
+   "peak_bins": [
+    252,
+    241,
+    236,
+    227
+   ],
+   "healthy": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "motion_peak_bins": [
+    261,
+    256,
+    251,
+    243
+   ]
+  },
+  "silent_train/session_050": {
+   "best_start": 223,
+   "best_frac": 0.7852023691404753,
+   "frac_240_320": 0.7047378140182737,
+   "frac_0_80": 0.0,
+   "peak_bins": [
+    250,
+    234,
+    234,
+    226
+   ],
+   "healthy": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "motion_peak_bins": [
+    259,
+    251,
+    247,
+    241
+   ]
+  }
+ },
+ "crop_suggestion": [
+  223,
+  303
+ ],
+ "spectrogram": {
+  "voiced": {
+   "session": "voiced_train/session_027",
+   "window": [
+    2.5,
+    3.5
+   ],
+   "utt": "train_01300"
+  },
+  "silent": {
+   "session": "silent_train/session_002",
+   "window": [
+    2.5,
+    3.5
+   ],
+   "utt": "train_00050"
+  }
+ }
+}

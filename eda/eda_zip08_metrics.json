@@ -1,0 +1,237 @@
+{
+ "meta": {
+  "data": "/Users/pegu/Downloads/sonispeech_datasets/data/SoniSpeech_08_of_09",
+  "when": "2026-11-20 05:08"
+ },
+ "inventory": {
+  "split_counts": {
+   "voiced_train": 12,
+   "voiced_eval": 1,
+   "silent_train": 25,
+   "silent_eval": 2
+  },
+  "by_ext": {
+   ".json": 352260,
+   ".wav": 5286711720
+  }
+ },
+ "header_ok": true,
+ "n_utt_ok": true,
+ "first_start_ok": true,
+ "gap_zero_frac_min": 1.0,
+ "utt_zero_frac_max": 0.00028,
+ "start_offset_ms": {
+  "median": 0.0,
+  "p05": -0.44,
+  "p95": 0.45
+ },
+ "mode_stats": {
+  "voiced": {
+   "n": 650,
+   "dur_mean": 5.269330769230769,
+   "dur_std": 1.7075368151835264,
+   "dur_min": 2.002999999999986,
+   "dur_max": 10.646999999999991,
+   "w_mean": 14.49846153846154,
+   "w_std": 5.326349372049874,
+   "p_over_15s": 0.0
+  },
+  "silent": {
+   "n": 1350,
+   "dur_mean": 5.402077777777778,
+   "dur_std": 1.7631369268549468,
+   "dur_min": 1.7989999999999782,
+   "dur_max": 10.48399999999998,
+   "w_mean": 14.40074074074074,
+   "w_std": 5.336540650830819,
+   "p_over_15s": 0.0
+  }
+ },
+ "words_all": {
+  "mean": 14.4325,
+  "std": 5.3334270174063505
+ },
+ "vocab_size": 2568,
+ "eval_text_in_train": 0,
+ "eval_n": 150,
+ "eval_id_in_train": 0,
+ "voiced_silent_pairs": [
+  [
+   "voiced_train/session_001",
+   "silent_train/session_001",
+   50
+  ],
+  [
+   "voiced_train/session_152",
+   "silent_train/session_152",
+   50
+  ]
+ ],
+ "duplicate_texts": 100,
+ "faulty_mismatch": [],
+ "lowband_rel": {
+  "voiced": 0.20086258327396156,
+  "silent": 6.832372074339898e-05
+ },
+ "corrupt_channels": [
+  [
+   "voiced_train/session_149",
+   1,
+   3,
+   99756
+  ],
+  [
+   "silent_train/session_001",
+   0,
+   1,
+   1
+  ],
+  [
+   "silent_train/session_001",
+   1,
+   1,
+   1
+  ]
+ ],
+ "corrupt_ids": {
+  "voiced_train/session_149": [
+   [],
+   [
+    "train_07445",
+    "train_07448",
+    "train_07449"
+   ]
+  ],
+  "silent_train/session_001": [
+   [
+    "train_00038"
+   ],
+   [
+    "train_00038"
+   ]
+  ]
+ },
+ "transcripts_past_audio": [],
+ "echo_profiles": {
+  "voiced_train/session_017": {
+   "start_pos": 155,
+   "shape": [
+    2,
+    2,
+    65767,
+    500
+   ],
+   "dtype": "float64",
+   "diff_shape": [
+    2,
+    2,
+    65767,
+    500
+   ],
+   "diff_dtype": "float64",
+   "runtime_s": 14.6,
+   "max_rss_bytes": 4477599744,
+   "npy_bytes_each": 1052272000,
+   "n_frames": 65767,
+   "audio_s": 328.835,
+   "utt_frames": 53541,
+   "_cache": "cache/eda/zip08/voiced_train__session_017"
+  },
+  "silent_train/session_022": {
+   "start_pos": 336,
+   "shape": [
+    2,
+    2,
+    56398,
+    500
+   ],
+   "dtype": "float64",
+   "diff_shape": [
+    2,
+    2,
+    56398,
+    500
+   ],
+   "diff_dtype": "float64",
+   "runtime_s": 11.9,
+   "max_rss_bytes": 5519425536,
+   "npy_bytes_each": 902368000,
+   "n_frames": 56398,
+   "audio_s": 281.99,
+   "utt_frames": 49603,
+   "_cache": "cache/eda/zip08/silent_train__session_022"
+  }
+ },
+ "window_info": {
+  "voiced_train/session_017": {
+   "best_start": 225,
+   "best_frac": 0.739933087963777,
+   "frac_240_320": 0.6926021798842968,
+   "frac_0_80": 0.0,
+   "peak_bins": [
+    252,
+    239,
+    238,
+    232
+   ],
+   "healthy": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "motion_peak_bins": [
+    261,
+    251,
+    251,
+    245
+   ]
+  },
+  "silent_train/session_022": {
+   "best_start": 232,
+   "best_frac": 0.7524305010070015,
+   "frac_240_320": 0.7380537347890889,
+   "frac_0_80": 0.0,
+   "peak_bins": [
+    259,
+    248,
+    240,
+    234
+   ],
+   "healthy": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "motion_peak_bins": [
+    268,
+    263,
+    256,
+    250
+   ]
+  }
+ },
+ "crop_suggestion": [
+  228,
+  308
+ ],
+ "spectrogram": {
+  "voiced": {
+   "session": "voiced_train/session_001",
+   "window": [
+    2.5,
+    3.5
+   ],
+   "utt": "train_00000"
+  },
+  "silent": {
+   "session": "silent_train/session_001",
+   "window": [
+    2.5,
+    3.5
+   ],
+   "utt": "train_00000"
+  }
+ }
+}

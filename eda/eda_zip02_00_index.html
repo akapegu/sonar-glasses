@@ -1,0 +1,48 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EDA zip02 SoniSpeech EDA overview</title><style>
+:root{--bg:#f6f5f2;--card:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#7a7974;--line:#e4e3df;
+--accent:#2a78d6;--good:#0b7d0b;--warn:#a86f00;--bad:#c23434;--code:#efeee9;--plate:#fcfcfb}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#121211;--card:#1a1a19;
+--ink:#f0efec;--ink2:#c3c2b7;--muted:#9a998f;--line:#33332f;--accent:#3987e5;--good:#39b839;
+--warn:#e0a52a;--bad:#e66767;--code:#262624;--plate:#fcfcfb}}
+:root[data-theme="dark"]{--bg:#121211;--card:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#9a998f;
+--line:#33332f;--accent:#3987e5;--good:#39b839;--warn:#e0a52a;--bad:#e66767;--code:#262624;--plate:#fcfcfb}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 64px}
+nav{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;margin-bottom:18px}
+nav a{color:var(--ink2);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a.on{color:var(--accent);border-color:var(--accent)}
+h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em}
+h2{font-size:18px;margin:34px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font-size:15px;margin:20px 0 6px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:12px 0}
+.checks{display:grid;gap:8px}
+.chk{display:grid;grid-template-columns:86px 1fr;gap:12px;align-items:start}
+.badge{display:inline-flex;gap:5px;align-items:center;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid currentColor;justify-content:center}
+.pass{color:var(--good)}.warn{color:var(--warn)}.fail{color:var(--bad)}.info{color:var(--accent)}
+figure{margin:12px 0;background:var(--plate);border:1px solid var(--line);border-radius:10px;padding:10px}
+figure img{width:100%;height:auto;display:block}
+figcaption{color:#52514e;font-size:13px;padding:6px 4px 0}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{color:var(--ink2);font-weight:600;background:var(--card);position:sticky;top:0}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr.flag td{color:var(--bad)}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:12.5px}
+pre{background:var(--code);padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.kpi .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:12px;color:var(--muted)}
+ol li,ul li{margin:4px 0}
+</style></head><body><div class="wrap">
+<nav><a class="on" href="eda_zip02_00_index.html">00 · Overview</a> <a class="" href="eda_zip02_01_inventory.html">01 · Inventory</a> <a class="" href="eda_zip02_02_audio.html">02 · Audio</a> <a class="" href="eda_zip02_03_transcripts.html">03 · Transcripts</a> <a class="" href="eda_zip02_04_echo_profiles.html">04 · Echo profiles</a> <a class="" href="eda_zip02_05_faulty_mic.html">05 · Faulty mic</a> <a class="" href="eda_zip02_06_memory.html">06 · Memory</a></nav>
+<h1>SoniSpeech EDA overview</h1>
+<div class="sub">SoniSpeech baseline · Phase A EDA · data: <code>/Users/pegu/Downloads/sonispeech_datasets/data/SoniSpeech_02_of_09</code> ·
+generated 2026-11-19 15:38 by <code>scripts/eda.py</code></div>
+<div class="card checks"><div class="chk"><span class="badge pass">✓ PASS</span><div>Audio format matches the spec in all 40 sessions (100 kHz, 2 ch, int16).</div></div><div class="chk"><span class="badge pass">✓ PASS</span><div>50 utterances per session; the first starts at 2.000 s.</div></div><div class="chk"><span class="badge pass">✓ PASS</span><div>Gaps between utterances are exact zeros; transcript times line up with the unmasked audio.</div></div><div class="chk"><span class="badge info">i NOTE</span><div>Durations: voiced 5.27 s, silent 5.44 s; 14.5 ± 5.4 words per utterance (paper: 5.26 / 5.41 s, 14.4 ± 5.3).</div></div><div class="chk"><span class="badge fail">✕ FAIL</span><div>Range crop <code>0:80</code> is wrong: the direct path sits at bin 250. Use <code>226:306</code> (data-driven, train sessions only).</div></div><div class="chk"><span class="badge info">i NOTE</span><div>The official code applies no normalisation; per-channel standardisation stays our choice.</div></div><div class="chk"><span class="badge pass">✓ PASS</span><div>Faulty-mic list (duplicated ch1) confirmed against the data for every session in this zip.</div></div><div class="chk"><span class="badge pass">✓ PASS</span><div>No undocumented corrupt channels.</div></div><div class="chk"><span class="badge pass">✓ PASS</span><div>Validation sessions (132–140) in this zip: voiced_train/session_133, voiced_train/session_134, voiced_train/session_140. All clean.</div></div><div class="chk"><span class="badge info">i NOTE</span><div>Official function: ~13 s and 4.4 GB RAM per session. Cache of float16 / 80 bins / utterances only ≈ 11.5 GB for the full corpus.</div></div></div><h2>Reports</h2><div class="tbl"><table><thead><tr><th class="">report</th><th class="">file</th><th class="">covers (README §2 step)</th></tr></thead><tbody><tr><td class=""><a href="eda_zip02_01_inventory.html">Inventory</a></td><td class=""><code>eda_zip02_01_inventory.html</code></td><td class="">1 inventory</td></tr><tr><td class=""><a href="eda_zip02_02_audio.html">Audio</a></td><td class=""><code>eda_zip02_02_audio.html</code></td><td class="">2 audio checks</td></tr><tr><td class=""><a href="eda_zip02_03_transcripts.html">Transcripts</a></td><td class=""><code>eda_zip02_03_transcripts.html</code></td><td class="">3 transcript checks</td></tr><tr><td class=""><a href="eda_zip02_04_echo_profiles.html">Echo profiles</a></td><td class=""><code>eda_zip02_04_echo_profiles.html</code></td><td class="">4–6 official script, code reading, profile plot</td></tr><tr><td class=""><a href="eda_zip02_05_faulty_mic.html">Faulty mic</a></td><td class=""><code>eda_zip02_05_faulty_mic.html</code></td><td class="">7 faulty mic</td></tr><tr><td class=""><a href="eda_zip02_06_memory.html">Memory</a></td><td class=""><code>eda_zip02_06_memory.html</code></td><td class="">8 memory</td></tr></tbody></table></div><p>Raw numbers: <code>eda_zip02_metrics.json</code>. Written summary: <code>eda_findings_zip02.md</code>.</p>
+</div></body></html>

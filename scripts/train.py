@@ -41,7 +41,13 @@ def set_dotted(cfg, key, value):
     parts = key.split(".")
     for p in parts[:-1]:
         d = d.setdefault(p, {})
-    d[parts[-1]] = yaml.safe_load(value)
+    v = yaml.safe_load(value)
+    if isinstance(v, str):  # YAML 1.1 reads "1e-3" as a string; accept it as a number
+        try:
+            v = float(v)
+        except ValueError:
+            pass
+    d[parts[-1]] = v
 
 
 def git_commit():

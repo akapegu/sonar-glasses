@@ -1,0 +1,7 @@
+matplotlib==3.9.4
+numpy==2.0.2
+opencv-python-headless==5.1.0.95
+pandas==2.3.3
+scipy==1.13.1
+torch==2.8.0
+torchvision==0.23.0

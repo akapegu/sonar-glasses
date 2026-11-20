@@ -1,0 +1,10 @@
+# generated / large / local-only
+data/
+cache/
+runs/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+# private notes and third-party PDFs
+papers/

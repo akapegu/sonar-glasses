@@ -148,12 +148,32 @@ def merge(out: Path):
     return summary
 
 
-def default_workers():
+def container_limits():
+    """(ram_gb, cpus) visible to this process. Containers (e.g. RunPod) report the whole
+    host via sysconf/os.cpu_count, so prefer the cgroup limits when they exist."""
     try:
         ram_gb = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
     except (ValueError, OSError):
-        ram_gb = 16
-    return max(1, min(os.cpu_count() or 1, int((ram_gb - 4) // 5)))  # ~5 GB peak per session
+        ram_gb = 16.0
+    cpus = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1)
+    try:
+        m = Path("/sys/fs/cgroup/memory.max").read_text().strip()
+        if m != "max":
+            ram_gb = min(ram_gb, int(m) / 1e9)
+    except (OSError, ValueError):
+        pass
+    try:
+        quota, period = Path("/sys/fs/cgroup/cpu.max").read_text().split()
+        if quota != "max":
+            cpus = min(cpus, max(1, int(int(quota) / int(period))))
+    except (OSError, ValueError):
+        pass
+    return ram_gb, cpus
+
+
+def default_workers():
+    ram_gb, cpus = container_limits()
+    return max(1, min(cpus, int((ram_gb - 4) // 5)))  # ~5 GB peak per session
 
 
 def main():

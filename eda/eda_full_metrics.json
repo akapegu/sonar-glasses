@@ -1,0 +1,496 @@
+{
+ "sessions": 360,
+ "missing": [],
+ "extra": [],
+ "duplicates": [],
+ "unique_train_sentences": 8004,
+ "unique_eval_sentences": 1000,
+ "test_overlap": [
+  "thanks frances that means a lot coming from you"
+ ],
+ "sentences_across_session_numbers": 0,
+ "voiced_silent_transcript_diffs": [
+  {
+   "part": "train",
+   "session": 78,
+   "id": "train_03881",
+   "voiced": "I appreciate that Dad...but can't we find a balance between worrying about my future and enjoying the present?",
+   "silent": "I appreciate thatDad...but can't we find a balance between worrying about my future and enjoying the present?"
+  },
+  {
+   "part": "train",
+   "session": 83,
+   "id": "train_04149",
+   "voiced": "Let me see. Oh, Kimberly, you've broken your arm. We need to take you to the hospital so they can put a coat on it.",
+   "silent": "Let me see. Oh, Kimberly, you've broken your arm. We need to take you to the hospital so they can put a cast on it."
+  },
+  {
+   "part": "train",
+   "session": 93,
+   "id": "train_04649",
+   "voiced": "I really enjoyed that walk, thanks for taking me!",
+   "silent": "I really enjoyed that walk, thank you for taking me!"
+  },
+  {
+   "part": "train",
+   "session": 96,
+   "id": "train_04799",
+   "voiced": "Hi, come in and have a seat. I wanted to talk to you about some things I've been bearing.",
+   "silent": "Hi, come in and have a seat. I wanted to talk to you about some things I've been hearing."
+  },
+  {
+   "part": "train",
+   "session": 97,
+   "id": "train_04840",
+   "voiced": "My admin username is \"admin\" and my password is \"password\".",
+   "silent": "My admin username is admin and my password is password."
+  }
+ ],
+ "text_fixes": [
+  {
+   "id": "train_03881",
+   "split": "silent_train",
+   "session": 78,
+   "text": "I appreciate thatDad...but can't we find a balance between worrying about my future and enjoying the present?"
+  }
+ ],
+ "corrupt": [
+  {
+   "session": "voiced_train/session_010",
+   "mic": 1,
+   "id": "train_00489",
+   "session_jumps": 2
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06700",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06701",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06702",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06703",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06704",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06705",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06706",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06707",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06708",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06709",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06710",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06711",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06712",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06713",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06714",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06715",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06716",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_135",
+   "mic": 1,
+   "id": "train_06717",
+   "session_jumps": 1722445
+  },
+  {
+   "session": "voiced_train/session_004",
+   "mic": 1,
+   "id": "train_00182",
+   "session_jumps": 2
+  },
+  {
+   "session": "silent_train/session_126",
+   "mic": 1,
+   "id": "train_06255",
+   "session_jumps": 514
+  },
+  {
+   "session": "silent_train/session_126",
+   "mic": 1,
+   "id": "train_06259",
+   "session_jumps": 514
+  },
+  {
+   "session": "silent_train/session_126",
+   "mic": 1,
+   "id": "train_06260",
+   "session_jumps": 514
+  },
+  {
+   "session": "silent_train/session_126",
+   "mic": 1,
+   "id": "train_06261",
+   "session_jumps": 514
+  },
+  {
+   "session": "silent_train/session_126",
+   "mic": 1,
+   "id": "train_06262",
+   "session_jumps": 514
+  },
+  {
+   "session": "silent_train/session_126",
+   "mic": 1,
+   "id": "train_06267",
+   "session_jumps": 514
+  },
+  {
+   "session": "silent_train/session_126",
+   "mic": 1,
+   "id": "train_06268",
+   "session_jumps": 514
+  },
+  {
+   "session": "silent_train/session_126",
+   "mic": 1,
+   "id": "train_06269",
+   "session_jumps": 514
+  },
+  {
+   "session": "voiced_train/session_149",
+   "mic": 1,
+   "id": "train_07445",
+   "session_jumps": 99756
+  },
+  {
+   "session": "voiced_train/session_149",
+   "mic": 1,
+   "id": "train_07448",
+   "session_jumps": 99756
+  },
+  {
+   "session": "voiced_train/session_149",
+   "mic": 1,
+   "id": "train_07449",
+   "session_jumps": 99756
+  },
+  {
+   "session": "silent_train/session_001",
+   "mic": 0,
+   "id": "train_00038",
+   "session_jumps": 1
+  },
+  {
+   "session": "silent_train/session_001",
+   "mic": 1,
+   "id": "train_00038",
+   "session_jumps": 1
+  }
+ ],
+ "drops": [
+  {
+   "split": "silent_train",
+   "session": 1,
+   "id": "train_00038",
+   "reason": "transient_both_mics"
+  },
+  {
+   "split": "silent_train",
+   "session": 126,
+   "id": "train_06255",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "silent_train",
+   "session": 126,
+   "id": "train_06259",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "silent_train",
+   "session": 126,
+   "id": "train_06260",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "silent_train",
+   "session": 126,
+   "id": "train_06261",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "silent_train",
+   "session": 126,
+   "id": "train_06262",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "silent_train",
+   "session": 126,
+   "id": "train_06267",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "silent_train",
+   "session": 126,
+   "id": "train_06268",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "silent_train",
+   "session": 126,
+   "id": "train_06269",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 4,
+   "id": "train_00182",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 10,
+   "id": "train_00489",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06700",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06701",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06702",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06703",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06704",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06705",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06706",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06707",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06708",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06709",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06710",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06711",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06712",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06713",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06714",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06715",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06716",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 135,
+   "id": "train_06717",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 149,
+   "id": "train_07445",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 149,
+   "id": "train_07448",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "voiced_train",
+   "session": 149,
+   "id": "train_07449",
+   "reason": "corrupt_mic1"
+  },
+  {
+   "split": "silent_train",
+   "session": 29,
+   "id": "train_01446",
+   "reason": "sentence_in_test"
+  },
+  {
+   "split": "voiced_train",
+   "session": 29,
+   "id": "train_01446",
+   "reason": "sentence_in_test"
+  }
+ ],
+ "stats": {
+  "voiced": {
+   "utterances": 9000,
+   "mean_dur": 5.255402777777777,
+   "hours": 13.138506944444444
+  },
+  "silent": {
+   "utterances": 9000,
+   "mean_dur": 5.412932999999999,
+   "hours": 13.532332499999997
+  }
+ },
+ "crop_window_starts": [
+  228,
+  230,
+  223,
+  230,
+  225,
+  226,
+  225,
+  224,
+  225,
+  225,
+  228,
+  223,
+  223,
+  223,
+  225,
+  232,
+  226,
+  228
+ ],
+ "faulty_list_confirmed": true
+}

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Unattended pod pipeline: wait for the cache build, train (MLflow + CSV logging), evaluate the
-# best checkpoint on validation, then stop the pod so the GPU stops billing.
+# Unattended pod pipeline: wait for the cache build, train (MLflow + CSV logging), evaluate
+# (dev: best checkpoint on val + test; final: last checkpoint on test), then stop the pod so
+# the GPU stops billing.
 # The network volume (/workspace: cache, runs, logs) survives the stop.
 #
 #   tmux new-session -d -s train "bash scripts/pod_pipeline.sh configs/baseline_vs.yaml"
@@ -45,8 +46,13 @@ for i, a in enumerate(args):
 print(f"{cfg['runs_dir']}/{cfg['run_name']}_{cfg['split']}")
 EOF
 )
+# dev runs: best.pt (picked on validation) scored on val and, as a read-only diagnostic, test.
+# final runs have no validation set, so no best.pt: score last.pt on test.
 if [ -f "$RUN_DIR/best.pt" ]; then
   $PY -u scripts/evaluate.py --run "$RUN_DIR" --ckpt best --split val
+  $PY -u scripts/evaluate.py --run "$RUN_DIR" --ckpt best --split test
+elif [ -f "$RUN_DIR/last.pt" ]; then
+  $PY -u scripts/evaluate.py --run "$RUN_DIR" --ckpt last --split test
 fi
 
 if [ "${AUTO_STOP:-1}" = "1" ] && [ -n "${RUNPOD_POD_ID:-}" ]; then

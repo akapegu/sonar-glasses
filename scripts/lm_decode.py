@@ -42,20 +42,39 @@ def train_texts(cache, split):
 
 
 def cmd_lm(a):
+    """In-domain transcripts (repeated --repeat times) plus optional external text files.
+    Unigram list = every in-domain word + external words seen at least --min-count times."""
+    from collections import Counter
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     texts = train_texts(a.cache, a.split)
-    (out / "text.txt").write_text("\n".join(texts) + "\n")
+    words = {w for t in texts for w in t.split()}
+    ext_counts = Counter()
+    with open(out / "text.txt", "w") as fh:
+        for _ in range(a.repeat):
+            fh.write("\n".join(texts) + "\n")
+        for f in a.external or []:
+            with open(f) as fin:
+                for line in fin:
+                    fh.write(line)
+                    ext_counts.update(line.split())
+    words |= {w for w, c in ext_counts.items() if c >= a.min_count}
+    cmd = [str(KENLM_BIN / "lmplz"), "-o", str(a.order), "--discount_fallback", "-S", "40%", "-T", str(out)]
+    if a.prune:
+        cmd += ["--prune", *map(str, a.prune)]
     with open(out / "text.txt") as fin, open(out / "lm.arpa", "w") as fout:
-        subprocess.run([str(KENLM_BIN / "lmplz"), "-o", str(a.order), "--discount_fallback", "-S", "20%"],
-                       stdin=fin, stdout=fout, stderr=subprocess.DEVNULL, check=True)
-    subprocess.run([str(KENLM_BIN / "build_binary"), str(out / "lm.arpa"), str(out / "lm.bin")],
+        subprocess.run(cmd, stdin=fin, stdout=fout, stderr=subprocess.DEVNULL, check=True)
+    subprocess.run([str(KENLM_BIN / "build_binary"), "trie", str(out / "lm.arpa"), str(out / "lm.bin")],
                    stdout=subprocess.DEVNULL, check=True)
-    words = sorted({w for t in texts for w in t.split()})
-    (out / "unigrams.txt").write_text("\n".join(words) + "\n")
-    json.dump(dict(split=a.split, order=a.order, sentences=len(texts), word_types=len(words)),
+    (out / "lm.arpa").unlink()
+    if a.external:
+        (out / "text.txt").unlink()  # large; rebuildable from the external files
+    (out / "unigrams.txt").write_text("\n".join(sorted(words)) + "\n")
+    json.dump(dict(split=a.split, order=a.order, sentences=len(texts), repeat=a.repeat,
+                   external=a.external, prune=a.prune, min_count=a.min_count, word_types=len(words)),
               open(out / "lm.json", "w"), indent=1)
-    print(f"{a.split} LM: {len(texts)} sentences, {len(words)} word types -> {out}", flush=True)
+    print(f"{a.split} LM: {len(texts)} in-domain sentences x{a.repeat}, external {a.external or []}, "
+          f"{len(words)} unigram types -> {out}", flush=True)
 
 
 def labels_from_tokenizer(path):
@@ -157,6 +176,10 @@ def main():
     p.add_argument("--split", required=True, choices=["dev", "final"])
     p.add_argument("--out", required=True)
     p.add_argument("--order", type=int, default=4)
+    p.add_argument("--repeat", type=int, default=1, help="repeat the in-domain transcripts N times")
+    p.add_argument("--external", nargs="*", help="external text files (one normalised sentence per line)")
+    p.add_argument("--prune", type=int, nargs="*", help="lmplz --prune thresholds, e.g. 0 0 1 1")
+    p.add_argument("--min-count", type=int, default=5, help="min external count for the unigram list")
     for name in ("tune", "decode"):
         p = sub.add_parser(name)
         p.add_argument("--logprobs", required=True, help="stem of logprobs_<split>_<ckpt>.npz/.csv")

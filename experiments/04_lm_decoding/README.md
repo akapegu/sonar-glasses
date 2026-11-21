@@ -74,5 +74,33 @@ The grid covered alpha 0.35–1.25 and beta 1–5; the optimum is interior.
 **Caveat: dev validation flatters the external LM.** The validation sentences were sampled from
 SODA *train* dialogues. The filter removes the sentences themselves, but the other turns of the
 same dialogues stay in the LM text and give it unusually close context. The test sentences
-come from SODA *test* dialogues, which are not in the LM text, so expect a smaller gain on test.
-Test result: to be filled in (scored once, final LM = sessions 1–140 + external).
+come from SODA *test* dialogues, which are not in the LM text, so we expected a smaller gain on
+test. It turned out almost as large.
+
+Test, scored once with alpha 0.75, beta 3.0 (final LM: sessions 1–140 ×100 + external,
+40,829 unigram types). Whisper WER, ours in brackets:
+
+| Model | LM | Voiced | Silent | OOV recall (V / S) |
+| --- | --- | --- | --- | --- |
+| final_vs | none (greedy) | 18.1% (19.2%) | 29.4% (30.6%) | 1.1% / 0.4% |
+| final_vs | in-domain | 15.1% (16.0%) | 24.2% (25.4%) | 0.4% / 0.0% |
+| final_vs | **in-domain + external** | **11.1%** (11.9%) | **19.6%** (20.6%) | 4.0% / 1.8% |
+| baseline_vs_dev | in-domain + external (dev LM) | 13.2% (14.1%) | 21.8% (23.0%) | 3.8% / 3.1% |
+
+### Leakage check on the test gain
+
+The 8-gram filter cannot catch near-copies of short sentences, so we checked directly: **202
+test sentences have a copy in the filtered external text that differs by exactly one word**
+(listed in `/workspace/lm/external/test_near_copies.txt`). They are almost all short generic
+lines with a different name ("hey alex how are you doing", "thanks laura i appreciate your
+support"); 160 of them have 5–9 words. The gain does not come from them:
+
+| Test subset | Mode | Greedy | In-domain LM | + external | Gain from external |
+| --- | --- | --- | --- | --- | --- |
+| all 1,000 | voiced | 18.1% | 15.1% | 11.1% | −4.0 |
+| 798 without a near-copy | voiced | 19.1% | 16.0% | 11.9% | −4.1 |
+| all 1,000 | silent | 29.3% | 24.2% | 19.6% | −4.6 |
+| 798 without a near-copy | silent | 30.6% | 25.4% | 20.8% | −4.6 |
+
+The gain is also flat across sentence length (−4.0 to −4.6 points for <8, 8–12 and 13+ words).
+For a strict comparison, report the 798-sentence numbers alongside the full test set.

@@ -87,7 +87,7 @@ Baseline rows to beat (Whisper-normalised, final_vs):
 | --- | --- | --- | --- | --- |
 | Greedy | none | 18.1% (ours 19.2%) | 29.4% (ours 30.6%) | 1.1% / 0.4% |
 | Beam | in-domain | **15.1%** (ours 16.0%) | **24.2%** (ours 25.4%) | 0.4% / 0.0% |
-| Beam | in-domain + external | not run yet | | |
+| Beam | in-domain + external | **11.1%** (ours 11.9%) | **19.6%** (ours 20.6%) | 4.0% / 1.8% |
 
 Results (2026-11-22), test, final_vs epoch 199, Whisper-normalised (ours in brackets):
 

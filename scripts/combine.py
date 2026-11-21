@@ -190,6 +190,9 @@ def cmd_finetune(a):
     held = [u for u in utts if u["session"] in set(a.held_sessions)]
     print(f"fine-tune on {len(train)} utterances, hold out {len(held)}", flush=True)
     tok, model = load_llm(a.model)
+    model.gradient_checkpointing_enable()   # 7B + activations do not fit 32 GB otherwise
+    model.enable_input_require_grads()
+    model.config.use_cache = False
     model = get_peft_model(model, LoraConfig(r=a.rank, lora_alpha=2 * a.rank, lora_dropout=0.05,
                                              target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
                                                              "gate_proj", "up_proj", "down_proj"],
@@ -212,18 +215,19 @@ def cmd_finetune(a):
         model.train()
         rng.shuffle(train)
         tot = 0.0
-        for s in range(0, len(train), a.batch):
-            batch = [example(u) for u in train[s:s + a.batch]]
+        for step, s in enumerate(range(0, len(train), a.micro)):
+            batch = [example(u) for u in train[s:s + a.micro]]
             L = max(len(i) for i, _ in batch)
             ids = torch.tensor([[tok.pad_token_id] * (L - len(i)) + i for i, _ in batch], device=model.device)
             lab = torch.tensor([[-100] * (L - len(l)) + l for _, l in batch], device=model.device)
             att = (torch.arange(L, device=model.device)[None] >= torch.tensor([L - len(i) for i, _ in batch],
                                                                               device=model.device)[:, None]).long()
             loss = model(input_ids=ids, attention_mask=att, labels=lab).loss
-            loss.backward()
-            opt.step()
-            opt.zero_grad()
-            tot += float(loss)
+            (loss * a.micro / a.batch).backward()
+            if (step + 1) % (a.batch // a.micro) == 0 or s + a.micro >= len(train):
+                opt.step()
+                opt.zero_grad()
+            tot += float(loss) * len(batch) / a.batch
         model.eval()
         r = evaluate(held, generate(tok, model, held), f"{a.adapter_out}_held_epoch{epoch}")
         mean = (r["voiced"]["wer_whisper"] + r["silent"]["wer_whisper"]) / 2
@@ -254,7 +258,8 @@ def main():
     p.add_argument("--rank", type=int, default=16)
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--epochs", type=int, default=4)
-    p.add_argument("--batch", type=int, default=8)
+    p.add_argument("--batch", type=int, default=8, help="effective batch (gradient accumulation)")
+    p.add_argument("--micro", type=int, default=4, help="micro-batch per forward pass")
     a = ap.parse_args()
     {"rover": cmd_rover, "llm": cmd_llm, "finetune": cmd_finetune}[a.cmd](a)
 

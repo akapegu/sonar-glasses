@@ -8,6 +8,11 @@
     concatenation: with prob concat_p join 2..concat_max random utterances, capped at max_frames
     SpecAugment: range_masks bands of up to range_mask_max bins and time_masks stretches of up to
     time_mask_max frames, set to 0 after normalisation
+  EchoSpeech (CHI '23, section 5.5) options, all off by default:
+    concat_consecutive: join utterances recorded in a row instead of random ones
+    concat_gap_max: still gap of 0..N frames between joined utterances
+    scale: multiply the sample by U(1 - scale, 1 + scale)
+    shift_p / shift_max: with prob shift_p pad 0..shift_max still frames on each side
 """
 import csv
 import json
@@ -69,6 +74,14 @@ class EchoDataset(Dataset):
     def __len__(self):
         return len(self.rows)
 
+    def _next_in_session(self, j):
+        """Index of the utterance recorded right after j (rows are sorted by mode, session, id), or None."""
+        k = j + 1
+        if k < len(self.rows) and self.rows[k]["mode"] == self.rows[j]["mode"] \
+                and self.rows[k]["session"] == self.rows[j]["session"]:
+            return k
+        return None
+
     def _concat_ids(self, i):
         ids = [i]
         a = self.aug
@@ -76,12 +89,39 @@ class EchoDataset(Dataset):
             k = random.randint(2, a.get("concat_max", 3))
             total = self.rows[i]["n_frames"]
             for _ in range(k - 1):
-                j = random.randrange(len(self.rows))
-                if total + self.rows[j]["n_frames"] > a.get("max_frames", 3000):
+                if a.get("concat_consecutive"):  # EchoSpeech 5.5.1: utterances recorded in a row
+                    j = self._next_in_session(ids[-1])
+                    if j is None:
+                        break
+                else:
+                    j = random.randrange(len(self.rows))
+                if total + self.rows[j]["n_frames"] + a.get("concat_gap_max", 0) > a.get("max_frames", 3000):
                     break
                 ids.append(j)
                 total += self.rows[j]["n_frames"]
         return ids
+
+    def _join(self, ids):
+        """Concatenate along time; with concat_gap_max > 0 insert a still (all-zero) gap of
+        0..concat_gap_max frames between utterances, like the zero-masked pauses in the recordings."""
+        parts = [self.arrays[ids[0]]]
+        for j in ids[1:]:
+            g = random.randint(0, self.aug.get("concat_gap_max", 0))
+            if g:
+                parts.append(np.zeros((*parts[0].shape[:2], g), parts[0].dtype))
+            parts.append(self.arrays[j])
+        return np.concatenate(parts, axis=2).astype(np.float32)
+
+    def _shift_pad(self, x):
+        """EchoSpeech 5.5.3: place the sample at a random time offset inside still padding
+        (0..shift_max frames on each side), counted in the input length so the model learns blank there."""
+        a = self.aug
+        if random.random() >= a.get("shift_p", 0.0):
+            return x
+        room = max(0, a.get("max_frames", 3000) - x.shape[2])
+        left = random.randint(0, min(a.get("shift_max", 0), room))
+        right = random.randint(0, min(a.get("shift_max", 0), room - left))
+        return np.pad(x, ((0, 0), (0, 0), (left, right)))
 
     def _specaug(self, x):
         a = self.aug
@@ -100,7 +140,12 @@ class EchoDataset(Dataset):
 
     def __getitem__(self, i):
         ids = self._concat_ids(i)
-        x = np.concatenate([self.arrays[j] for j in ids], axis=2).astype(np.float32)
+        x = self._join(ids) if self.train else np.concatenate([self.arrays[j] for j in ids], axis=2).astype(np.float32)
+        if self.train:
+            s = self.aug.get("scale", 0.0)  # EchoSpeech 5.5.2: multiply by U(1 - s, 1 + s)
+            if s:
+                x *= random.uniform(1 - s, 1 + s)
+            x = self._shift_pad(x)  # still padding is raw 0 (no motion), normalised like the rest
         x = (x - self.mean) / self.std
         if self.train:
             x = self._specaug(x)

@@ -47,7 +47,7 @@ def main():
     rows = load_rows(cache, cfg["split"], args.split, ["voiced", "silent"])
     if not rows:
         sys.exit(f"no {args.split} rows for split '{cfg['split']}'")
-    arrays = preload(cache, rows)
+    arrays = preload(cache, rows, cfg.get("crop"))
     ds = EchoDataset(rows, arrays, tok, stats, train=False, aug={})
     dl = torch.utils.data.DataLoader(ds, collate_fn=collate, num_workers=4,
                                      batch_sampler=BucketBatchSampler([r["n_frames"] for r in rows],

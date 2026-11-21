@@ -40,9 +40,27 @@ def load_rows(cache: Path, split_kind: str, split: str, modes):
     return rows
 
 
-def preload(cache: Path, rows, threads: int = 16):
+def cache_crop(cache: Path):
+    """Range bins stored in a cache. Caches built before the crop was recorded hold 226:306."""
+    try:
+        crop = json.load(open(Path(cache) / "summary.json")).get("crop")
+    except OSError:
+        crop = None
+    return tuple(crop) if crop else (226, 306)
+
+
+def preload(cache: Path, rows, crop=None, threads: int = 16):
+    """Load the arrays; with crop=(first, end) in absolute range bins, keep only those bins
+    (must lie inside the cache's own crop)."""
+    lo = hi = None
+    if crop:
+        c0, c1 = cache_crop(cache)
+        assert c0 <= crop[0] < crop[1] <= c1, f"crop {crop} is outside the cache's bins {c0}:{c1}"
+        lo, hi = crop[0] - c0, crop[1] - c0
+
     def one(r):
-        return np.load(Path(cache) / r["path"])
+        a = np.load(Path(cache) / r["path"])
+        return np.ascontiguousarray(a[:, lo:hi, :]) if crop else a
     with ThreadPoolExecutor(threads) as ex:
         return list(ex.map(one, rows))
 

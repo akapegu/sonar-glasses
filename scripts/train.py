@@ -167,15 +167,18 @@ def main():
     tok = Tokenizer(run_dir / "tokenizer.model")
 
     t0 = time.time()
-    train_arrays = preload(cache, train_rows)
-    val_arrays = preload(cache, val_rows) if val_rows else []
+    train_arrays = preload(cache, train_rows, cfg.get("crop"))
+    val_arrays = preload(cache, val_rows, cfg.get("crop")) if val_rows else []
     print(f"loaded {len(train_rows)} train / {len(val_rows)} val utterances in {time.time() - t0:.0f} s", flush=True)
 
     stats_path = run_dir / "stats.json"
     if stats_path.exists():
         stats = yaml.safe_load(open(stats_path))
     else:
-        stats = compute_stats(train_arrays, tc.get("stats_max_utts", 4000), tc["seed"])
+        if cfg.get("normalize", True):
+            stats = compute_stats(train_arrays, tc.get("stats_max_utts", 4000), tc["seed"])
+        else:  # official code: no normalisation of the profiles
+            stats = dict(mean=[0.0] * 4, std=[1.0] * 4, n_values_per_channel=0, n_utts=0)
         save_json(stats, stats_path)
     print(f"normalisation mean {np.round(stats['mean'], 5)} std {np.round(stats['std'], 5)}", flush=True)
 

@@ -62,6 +62,7 @@ def main():
     ap.add_argument("--work", required=True, help="scratch dir for downloads (container disk)")
     ap.add_argument("--zips", nargs="*", type=int, help="zip numbers (default: all 9; zip 1 always first)")
     ap.add_argument("--workers", type=int, help="passed to preprocess.py")
+    ap.add_argument("--crop", nargs=2, type=int, help="passed to preprocess.py (range bins, end exclusive)")
     args = ap.parse_args()
     cache, work = Path(args.cache), Path(args.work)
     (cache / "_fetch").mkdir(parents=True, exist_ok=True)
@@ -105,6 +106,8 @@ def main():
                "--out", str(cache), "--code", str(code_dir)]
         if args.workers:
             cmd += ["--workers", str(args.workers)]
+        if args.crop:
+            cmd += ["--crop", *map(str, args.crop)]
         run(cmd)
 
         shutil.rmtree(ext)

@@ -71,7 +71,7 @@ def atomic_save_npy(path: Path, arr):
 
 
 def process_session(job):
-    s, out, code_dir, drops, overwrite = job
+    s, out, code_dir, drops, overwrite, crop = job
     sdir = Path(s["dir"])
     rel_dir = Path(s["split_name"]) / f"session_{s['num']:03d}"
     odir = Path(out) / rel_dir
@@ -82,7 +82,7 @@ def process_session(job):
     t0 = time.time()
 
     profiles, start_pos = official.echo_profiles(Path(code_dir), sdir / "audio.wav")
-    d = official.diff_crop(profiles, CROP)      # (4, F, 80) float32
+    d = official.diff_crop(profiles, crop)      # (4, F, n_bins) float32
     n_frames = d.shape[1]
     del profiles
 
@@ -114,7 +114,7 @@ def process_session(job):
                          start_s=u["start"], end_s=u["end"], start_pos=start_pos,
                          text_raw=text_raw, text=norm_text(text_raw)))
 
-    meta = dict(version=VERSION, crop=list(CROP), paths=PATHS, fps=FPS, start_pos=start_pos,
+    meta = dict(version=VERSION, crop=list(crop), paths=PATHS, fps=FPS, start_pos=start_pos,
                 n_frames=n_frames, seconds=round(time.time() - t0, 1), rows=rows)
     tmp = done.with_suffix(".json.tmp")
     json.dump(meta, open(tmp, "w"))
@@ -124,9 +124,12 @@ def process_session(job):
 
 
 def merge(out: Path):
-    rows = []
+    rows, crops = [], set()
     for f in sorted(out.glob("*/session_*/session.json")):
-        rows += json.load(open(f))["rows"]
+        meta = json.load(open(f))
+        rows += meta["rows"]
+        crops.add(tuple(meta["crop"]))
+    assert len(crops) <= 1, f"sessions in {out} were built with different crops: {crops}"
     rows.sort(key=lambda r: (r["split_name"], r["session"], r["utt_id"]))
     with open(out / "manifest.csv", "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=FIELDS)
@@ -143,7 +146,8 @@ def merge(out: Path):
                    dropped_by_reason={k: sum(1 for r in rows if r["dropped"] == k)
                                       for k in sorted({r["dropped"] for r in rows if r["dropped"]})},
                    counts={f"{a}:{b}:{c}": v for (a, b, c), v in sorted(by.items())},
-                   frames_kept=sum(int(r["n_frames"]) for r in kept))
+                   frames_kept=sum(int(r["n_frames"]) for r in kept),
+                   crop=list(crops.pop()) if crops else None)
     json.dump(summary, open(out / "summary.json", "w"), indent=1)
     return summary
 
@@ -184,6 +188,8 @@ def main():
     ap.add_argument("--drop-list", default=str(ROOT / "eda" / "drop_list.csv"))
     ap.add_argument("--workers", type=int, default=default_workers())
     ap.add_argument("--only", nargs="*", help="limit to sessions like voiced_train/session_001")
+    ap.add_argument("--crop", nargs=2, type=int, default=list(CROP), metavar=("FIRST", "END"),
+                    help=f"range bins to keep, end exclusive (default {CROP[0]} {CROP[1]})")
     ap.add_argument("--overwrite", action="store_true")
     ap.add_argument("--merge-only", action="store_true")
     args = ap.parse_args()
@@ -199,9 +205,9 @@ def main():
             sys.exit("no sessions found under --data")
         code_dir = Path(args.code) if args.code else official.find_code_dir(*args.data, ROOT / "data")
         drops = load_drop_list(args.drop_list)
-        print(f"{len(sess)} sessions, {args.workers} workers, crop {CROP}, code {code_dir}, "
+        print(f"{len(sess)} sessions, {args.workers} workers, crop {args.crop}, code {code_dir}, "
               f"{len(drops)} drop-list entries", flush=True)
-        jobs = [(s, str(out), str(code_dir), drops, args.overwrite) for s in sess]
+        jobs = [(s, str(out), str(code_dir), drops, args.overwrite, tuple(args.crop)) for s in sess]
         t0, n = time.time(), 0
         with Pool(args.workers, maxtasksperchild=1) as pool:
             for r in pool.imap_unordered(process_session, jobs):

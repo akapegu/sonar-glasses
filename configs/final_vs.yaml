@@ -1,0 +1,55 @@
+# Final voiced + silent run (paper Table 3, last row: 15.8% voiced / 26.3% silent test WER).
+# Baseline recipe + the two augmentation changes that helped in the 40-epoch dev ablations
+# (val mean WER at epoch 39, baseline 36.0%):
+#   aug3    10 time masks, range masks up to 16 bins            -> 35.0%
+#   echoaug EchoSpeech (CHI '23) consecutive concat with pauses,
+#           amplitude scaling, random time shift               -> 34.8%
+# Input unchanged (crop 226:306, per-channel normalisation): shifted crops (250:330, 240:320)
+# were worse and no-normalisation was level.
+# Trains on sessions 1-140 (no validation set); the pipeline scores last.pt on test once.
+run_name: final_vs
+cache: /workspace/cache/v1
+runs_dir: /workspace/runs
+split: final
+modes: [voiced, silent]
+
+tokenizer:
+  vocab_size: 1000
+
+model:
+  range_stride: 2
+
+train:
+  epochs: 200
+  batch_size: 16
+  lr: 2.0e-4
+  weight_decay: 1.0e-4
+  warmup_frac: 0.05
+  final_lr_frac: 0.01
+  grad_clip: 5.0
+  amp: bf16
+  seed: 0
+  num_workers: 8
+  stats_max_utts: 4000
+  keep_epochs: [39, 99, 149]        # weight snapshots for later comparison
+
+aug:
+  concat_p: 0.5
+  concat_max: 3
+  max_frames: 3000
+  concat_consecutive: true          # echoaug
+  concat_gap_max: 200               # echoaug: up to 1 s still pause between joined utterances
+  scale: 0.05                       # echoaug: amplitude x U(0.95, 1.05)
+  shift_p: 0.5                      # echoaug: random time shift ...
+  shift_max: 400                    # ... inside up to 2 s still padding per side
+  range_masks: 2
+  range_mask_max: 16                # aug3
+  time_masks: 10                    # aug3
+  time_mask_max: 40
+
+eval:
+  every: 5
+
+log:
+  backend: mlflow
+  project: sonar-glasses

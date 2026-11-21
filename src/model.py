@@ -3,7 +3,7 @@
 Input (B, 4, 80, T): 4 sound paths as channels, 80 range bins as height, T frames as width.
 - torchvision ResNet-34 with every BatchNorm replaced by GroupNorm(32) and the stem max-pool removed
 - stride 2 in time in the stem conv and the first block of stages 2, 3, 4 -> 16x temporal downsampling
-- range-axis stride: 2 (standard 2D stride, default) or 1 (time-only); averaged away at the end
+- range-axis stride: 2 (standard 2D stride, default), 1 (time-only), or per stage; averaged away at the end
 - mean over the range axis -> (B, T/16, 512) -> linear -> 1,001 classes (blank = 0) -> log_softmax
 """
 import torch
@@ -17,15 +17,19 @@ def _set_stride(conv: nn.Conv2d, stride):
 
 
 class ResNet34CTC(nn.Module):
-    def __init__(self, n_classes: int = 1001, in_channels: int = 4, range_stride: int = 2):
+    def __init__(self, n_classes: int = 1001, in_channels: int = 4, range_stride=2):
+        """range_stride: one int for all four strided stages, or a list of 4 for
+        (stem, layer2, layer3, layer4), e.g. [1, 2, 2, 2] keeps full range resolution in the stem."""
         super().__init__()
+        rs = list(range_stride) if isinstance(range_stride, (list, tuple)) else [range_stride] * 4
+        assert len(rs) == 4, "range_stride must be an int or a list of 4"
         r = torchvision.models.resnet34(weights=None, norm_layer=lambda c: nn.GroupNorm(32, c))
-        r.conv1 = nn.Conv2d(in_channels, 64, kernel_size=7, stride=(range_stride, 2), padding=3, bias=False)
+        r.conv1 = nn.Conv2d(in_channels, 64, kernel_size=7, stride=(rs[0], 2), padding=3, bias=False)
         r.maxpool = nn.Identity()
-        for layer in (r.layer2, r.layer3, r.layer4):
+        for layer, s in zip((r.layer2, r.layer3, r.layer4), rs[1:]):
             block = layer[0]
-            _set_stride(block.conv1, (range_stride, 2))
-            _set_stride(block.downsample[0], (range_stride, 2))
+            _set_stride(block.conv1, (s, 2))
+            _set_stride(block.downsample[0], (s, 2))
         self.encoder = nn.Sequential(r.conv1, r.bn1, r.relu, r.layer1, r.layer2, r.layer3, r.layer4)
         self.fc = nn.Linear(512, n_classes)
 

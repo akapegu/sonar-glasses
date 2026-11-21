@@ -276,6 +276,11 @@ def main():
         tmp = run_dir / "last.pt.tmp"
         torch.save(ck, tmp)
         tmp.replace(last)
+        # short ablations: keep the full-length LR schedule (train.epochs) but stop early, so the
+        # curve is directly comparable epoch-for-epoch with a full run
+        if tc.get("stop_after") and epoch + 1 >= int(tc["stop_after"]):
+            print(f"stop_after={tc['stop_after']} reached; stopping (schedule length {tc['epochs']} epochs)", flush=True)
+            break
 
     tracker.finish()
     print(f"done. best mean val WER {best:.4f}; run dir {run_dir}", flush=True)

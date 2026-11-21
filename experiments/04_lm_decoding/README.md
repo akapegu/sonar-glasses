@@ -59,4 +59,20 @@ split** (6,593 times), and 168,406 turns share an 8-gram with a test sentence. A
 SODA LM would leak a fifth of the test set.
 
 External LM: in-domain transcripts repeated ×100 plus the 8.29 M filtered turns, 3- and 4-gram
-singletons pruned, 40,827-word unigram list. Results: to be filled in (tuning on dev validation).
+singletons pruned, 40,827-word unigram list (dev version; built in about 15 min on 28 CPUs).
+
+Dev validation (`baseline_vs_dev`, Whisper WER, ours in brackets):
+
+| LM | Best alpha / beta | Voiced | Silent |
+| --- | --- | --- | --- |
+| none (greedy) | — | 25.5% (26.5%) | 31.8% (32.9%) |
+| in-domain 4-gram | 0.5 / 2.0 | 20.1% (21.0%) | 25.6% (26.7%) |
+| **in-domain + external** | **0.75 / 3.0** | **15.5%** (16.2%) | **20.5%** (21.4%) |
+
+The grid covered alpha 0.35–1.25 and beta 1–5; the optimum is interior.
+
+**Caveat: dev validation flatters the external LM.** The validation sentences were sampled from
+SODA *train* dialogues. The filter removes the sentences themselves, but the other turns of the
+same dialogues stay in the LM text and give it unusually close context. The test sentences
+come from SODA *test* dialogues, which are not in the LM text, so expect a smaller gain on test.
+Test result: to be filled in (scored once, final LM = sessions 1–140 + external).

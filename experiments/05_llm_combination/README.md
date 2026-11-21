@@ -39,7 +39,29 @@ Held-out sessions 139–140 only:
 | Qwen2.5-7B, off the shelf (epoch 0) | 16.5% | 21.7% |
 | LoRA, epoch 1 | 18.1% | 27.9% |
 | LoRA, epoch 2 | 16.1% | 25.6% |
+| LoRA, epoch 3 | 17.9% | 26.9% |
+| LoRA, epoch 4 | 16.7% | 24.7% |
 
-LoRA on about 690 examples has not beaten zero-shot so far. Test results wait for the two
-extra final-recipe seeds (test-time pool: final models + the dev models). Still to do: the
-hallucination read-through of 50 changed sentences (B6), and test scoring.
+**LoRA does not beat zero-shot** (rank 16, lr 1e-4, effective batch 8, 4 epochs, 15 min on an
+RTX PRO 4500). After fine-tuning, 62–65% of its outputs contain a word that is in none of the
+candidates: with only about 690 examples it learns to write fluent sentences of its own rather
+than to repair the candidates. The saved adapter is the epoch-0 (zero-shot) model.
+
+## Hallucination check (B6, off-the-shelf Qwen on dev validation)
+
+| | Utterances |
+| --- | --- |
+| Output differs from the strongest model's top-1 | 580 of 882 |
+| ... fewer errors / more errors / same | 326 / 82 / 172 |
+| Output contains a word in no candidate | 130 |
+| ... fewer errors / more errors | 63 / 22 |
+
+A hand read of 50 random new-word outputs: most repair word forms and grammar
+("follow and too please" → "falling into place", 5 errors → 0). About 7 of the 50 read
+fluently but change the meaning, almost always where the candidates were already garbled:
+"she was movie" → "she was perfect" (reference: "moving"), "how in the i start" → "how it
+started" (reference: "how did the fire start"). When the candidates are nonsense, the LLM writes
+plausible text instead of flagging uncertainty.
+
+Test results wait for the two extra final-recipe seeds (test-time pool: final models + the
+dev models).

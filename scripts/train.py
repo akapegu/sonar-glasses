@@ -11,7 +11,13 @@ normalisation stats, metrics.csv, last.pt (every epoch, used to resume) and best
 (lowest mean validation WER). Rerunning the same command resumes from last.pt.
 Logged per step: train/loss, train/lr. Per epoch: epoch, train/loss_epoch, train/frames_per_s,
 time/epoch_s, gpu/mem_gb; at validation: val/loss and val/wer_{voiced,silent,mean}.
+
+Multi-GPU (same recipe, faster): torchrun --standalone --nproc_per_node=N scripts/train.py ...
+Each global batch of train.batch_size is split across the N GPUs and gradients are averaged,
+so the update equals single-GPU training with the same batch (the model uses GroupNorm, so
+there are no batch statistics to synchronise). Only rank 0 logs, evaluates and saves.
 """
+import os
 import argparse
 import copy
 import math
@@ -24,6 +30,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 import yaml
 
@@ -58,6 +65,8 @@ def git_commit():
 
 
 def pick_device():
+    if os.environ.get("SONAR_DEVICE"):  # e.g. cpu, to test the multi-process path on a laptop
+        return torch.device(os.environ["SONAR_DEVICE"])
     if torch.cuda.is_available():
         return torch.device("cuda")
     if torch.backends.mps.is_available():
@@ -81,6 +90,33 @@ def ctc_loss_fn(log_probs, out_lens, targets, target_lens, ctc, device):
     if device.type == "mps":        # CTC is not implemented on MPS
         lp, out_lens, targets, target_lens = lp.cpu(), out_lens.cpu(), targets.cpu(), target_lens.cpu()
     return ctc(lp, targets, out_lens, target_lens)
+
+
+def ctc_sum_per_sample(log_probs, out_lens, targets, target_lens, device):
+    """Sum over the batch of each sample's CTC loss divided by its target length: the numerator
+    of nn.CTCLoss(reduction="mean"), so sum / global batch size reproduces the single-GPU loss."""
+    ctc = nn.CTCLoss(blank=0, zero_infinity=True, reduction="none")
+    per = ctc_loss_fn(log_probs, out_lens, targets, target_lens, ctc, device)
+    return (per / target_lens.to(per.device).clamp(min=1)).sum()
+
+
+class ShardedBatches(torch.utils.data.Sampler):
+    """Rank r of N takes batch[r::N] of every global batch. Batches smaller than N (at most the
+    one partial batch per pool) are skipped so every rank runs the same number of steps."""
+
+    def __init__(self, batch_sampler, rank, world):
+        self.bs, self.rank, self.world = batch_sampler, rank, world
+
+    def set_epoch(self, epoch):
+        self.bs.set_epoch(epoch)
+
+    def __iter__(self):
+        for b in self.bs:
+            if len(b) >= self.world:
+                yield b[self.rank::self.world]
+
+    def __len__(self):
+        return sum(1 for b in self.bs if len(b) >= self.world)
 
 
 @torch.no_grad()
@@ -127,15 +163,37 @@ def main():
     tag = args.tag or ("smoke" if args.smoke else (f"overfit{args.overfit}" if args.overfit else ""))
     run_name = f"{cfg['run_name']}_{cfg['split']}" + (f"_{tag}" if tag else "")
     run_dir = Path(cfg["runs_dir"]) / run_name
-    run_dir.mkdir(parents=True, exist_ok=True)
     cache = Path(cfg["cache"])
+
+    # ---- distributed setup (torchrun sets WORLD_SIZE / RANK / LOCAL_RANK)
+    world = int(os.environ.get("WORLD_SIZE", 1))
+    rank = int(os.environ.get("RANK", 0))
+    ddp = world > 1
+    device = pick_device()
+    if ddp:
+        if device.type == "cuda":
+            torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
+            device = torch.device("cuda", int(os.environ["LOCAL_RANK"]))
+        dist.init_process_group("nccl" if device.type == "cuda" else "gloo")
+    main_proc = rank == 0
+
+    def barrier():
+        if ddp:
+            dist.barrier()
+
+    def log(msg):
+        if main_proc:
+            print(msg, flush=True)
+
+    if main_proc:
+        run_dir.mkdir(parents=True, exist_ok=True)
+    barrier()
 
     random.seed(tc["seed"])
     np.random.seed(tc["seed"])
     torch.manual_seed(tc["seed"])
-    device = pick_device()
     amp_dtype = {"bf16": torch.bfloat16, "fp16": torch.float16}.get(str(tc.get("amp")).lower()) if device.type == "cuda" else None
-    print(f"run {run_name} on {device} (amp {amp_dtype}), commit {git_commit()[:7]}", flush=True)
+    log(f"run {run_name} on {device} x{world} (amp {amp_dtype}), commit {git_commit()[:7]}")
 
     # ---- data
     train_rows = load_rows(cache, cfg["split"], "train", cfg["modes"])
@@ -158,29 +216,31 @@ def main():
 
     # ---- tokenizer (trained once per split on that split's training transcripts)
     tok_path = cache / "tokenizers" / f"{cfg['split']}_unigram{cfg['tokenizer']['vocab_size']}.model"
-    if not tok_path.exists():
-        all_train = load_rows(cache, cfg["split"], "train", ["voiced", "silent"])
-        texts = sorted({r["text"] for r in all_train})
-        print(f"training tokenizer on {len(texts)} unique sentences", flush=True)
-        train_tokenizer(texts, tok_path.with_suffix(""), cfg["tokenizer"]["vocab_size"])
-    shutil.copy(tok_path, run_dir / "tokenizer.model")
+    if main_proc:
+        if not tok_path.exists():
+            all_train = load_rows(cache, cfg["split"], "train", ["voiced", "silent"])
+            texts = sorted({r["text"] for r in all_train})
+            print(f"training tokenizer on {len(texts)} unique sentences", flush=True)
+            train_tokenizer(texts, tok_path.with_suffix(""), cfg["tokenizer"]["vocab_size"])
+        shutil.copy(tok_path, run_dir / "tokenizer.model")
+    barrier()
     tok = Tokenizer(run_dir / "tokenizer.model")
 
     t0 = time.time()
     train_arrays = preload(cache, train_rows, cfg.get("crop"))
     val_arrays = preload(cache, val_rows, cfg.get("crop")) if val_rows else []
-    print(f"loaded {len(train_rows)} train / {len(val_rows)} val utterances in {time.time() - t0:.0f} s", flush=True)
+    log(f"loaded {len(train_rows)} train / {len(val_rows)} val utterances in {time.time() - t0:.0f} s")
 
     stats_path = run_dir / "stats.json"
-    if stats_path.exists():
-        stats = yaml.safe_load(open(stats_path))
-    else:
+    if main_proc and not stats_path.exists():
         if cfg.get("normalize", True):
             stats = compute_stats(train_arrays, tc.get("stats_max_utts", 4000), tc["seed"])
         else:  # official code: no normalisation of the profiles
             stats = dict(mean=[0.0] * 4, std=[1.0] * 4, n_values_per_channel=0, n_utts=0)
         save_json(stats, stats_path)
-    print(f"normalisation mean {np.round(stats['mean'], 5)} std {np.round(stats['std'], 5)}", flush=True)
+    barrier()
+    stats = yaml.safe_load(open(stats_path))
+    log(f"normalisation mean {np.round(stats['mean'], 5)} std {np.round(stats['std'], 5)}")
 
     # CTC needs T_out >= target length for every sample
     worst = min((math.ceil(r["n_frames"] / 16) - len(tok.encode(r["text"])) for r in train_rows))
@@ -188,6 +248,8 @@ def main():
 
     train_ds = EchoDataset(train_rows, train_arrays, tok, stats, train=not args.overfit, aug=aug)
     sampler = BucketBatchSampler([r["n_frames"] for r in train_rows], tc["batch_size"], seed=tc["seed"])
+    if ddp:
+        sampler = ShardedBatches(sampler, rank, world)
     nw = tc.get("num_workers", 4) if device.type == "cuda" else 0
     train_dl = torch.utils.data.DataLoader(train_ds, batch_sampler=sampler, collate_fn=collate, num_workers=nw,
                                            pin_memory=device.type == "cuda", persistent_workers=nw > 0)
@@ -199,7 +261,8 @@ def main():
             collate_fn=collate, num_workers=min(nw, 4), pin_memory=device.type == "cuda")
 
     # ---- model / optimiser / schedule
-    model = ResNet34CTC(n_classes=tok.n_classes, range_stride=cfg["model"]["range_stride"]).to(device)
+    raw_model = ResNet34CTC(n_classes=tok.n_classes, range_stride=cfg["model"]["range_stride"]).to(device)
+    model = raw_model
     opt = torch.optim.Adam(model.parameters(), lr=tc["lr"], weight_decay=tc["weight_decay"])
     total_steps = tc["epochs"] * len(sampler)
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda(total_steps, tc["warmup_frac"], tc["final_lr_frac"]))
@@ -211,20 +274,35 @@ def main():
     last = run_dir / "last.pt"
     if last.exists():
         ck = torch.load(last, map_location=device, weights_only=False)
-        model.load_state_dict(ck["model"])
+        raw_model.load_state_dict(ck["model"])
         opt.load_state_dict(ck["opt"])
         sched.load_state_dict(ck["sched"])
         scaler.load_state_dict(ck["scaler"])
         start_epoch, step, best, run_id = ck["epoch"] + 1, ck["step"], ck["best"], ck.get("run_id")
-        print(f"resumed from epoch {ck['epoch']} (step {step}, best mean WER {best:.4f})", flush=True)
+        log(f"resumed from epoch {ck['epoch']} (step {step}, best mean WER {best:.4f})")
+    if ddp:  # wraps after loading; DDP broadcasts rank 0's weights to all ranks
+        model = torch.nn.parallel.DistributedDataParallel(
+            raw_model, device_ids=[device.index] if device.type == "cuda" else None)
+        # different augmentation randomness per rank (DataLoader workers seed from torch's RNG)
+        random.seed(tc["seed"] + rank)
+        torch.manual_seed(tc["seed"] + rank)
 
     meta = dict(cfg=cfg, commit=git_commit(), run_name=run_name, n_params=n_params, device=str(device),
-                n_train=len(train_rows), n_val=len(val_rows), total_steps=total_steps, smoke=args.smoke,
-                overfit=args.overfit)
-    yaml.safe_dump(meta, open(run_dir / "config.yaml", "w"), sort_keys=False)
-    tracker = Tracker(cfg["log"]["backend"], run_dir, run_name, meta, cfg["log"].get("project", "sonar-glasses"),
-                      resume_id=run_id)
-    print(f"{n_params / 1e6:.1f} M params, {len(sampler)} steps/epoch, {total_steps} total steps", flush=True)
+                n_gpus=world, n_train=len(train_rows), n_val=len(val_rows), total_steps=total_steps,
+                smoke=args.smoke, overfit=args.overfit)
+    tracker = None
+    if main_proc:
+        yaml.safe_dump(meta, open(run_dir / "config.yaml", "w"), sort_keys=False)
+        tracker = Tracker(cfg["log"]["backend"], run_dir, run_name, meta, cfg["log"].get("project", "sonar-glasses"),
+                          resume_id=run_id)
+    log(f"{n_params / 1e6:.1f} M params, {len(sampler)} steps/epoch, {total_steps} total steps")
+
+    def all_sum(*vals):
+        """Sum scalars over ranks (identity on one process)."""
+        t = torch.tensor(vals, dtype=torch.float64, device=device)
+        if ddp:
+            dist.all_reduce(t)
+        return t.tolist()
 
     # ---- train
     model.train()
@@ -238,7 +316,11 @@ def main():
             with torch.autocast(device.type, dtype=amp_dtype, enabled=amp_dtype is not None):
                 lp = model(x)
             out_lens = ResNet34CTC.out_lengths(lens).to(device)
-            loss = ctc_loss_fn(lp, out_lens, y.to(device), ylens.to(device), ctc, device)
+            local_sum = ctc_sum_per_sample(lp, out_lens, y.to(device), ylens.to(device), device)
+            n_global = all_sum(len(lens))[0]
+            # DDP averages gradients over ranks, so scale by world / global batch size: the update
+            # then equals the single-GPU mean loss over the whole global batch
+            loss = local_sum * (world / n_global)
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
@@ -247,21 +329,30 @@ def main():
             scaler.update()
             sched.step()
             step += 1
-            loss_sum += float(loss.detach())
+            batch_loss = float(loss.detach()) / world  # this rank's share of the global mean loss
+            loss_sum += batch_loss
             n_batches += 1
             frames += int(lens.sum())
             if step % 25 == 0:
-                tracker.log({"train/loss": float(loss.detach()), "train/lr": sched.get_last_lr()[0],
-                             "train/grad_norm": float(gnorm), "epoch": epoch}, step)
+                step_loss = all_sum(batch_loss)[0]
+                if main_proc:
+                    tracker.log({"train/loss": step_loss, "train/lr": sched.get_last_lr()[0],
+                                 "train/grad_norm": float(gnorm), "epoch": epoch}, step)
         ep_time = time.time() - t_ep
+        loss_sum, frames = all_sum(loss_sum, frames)
         metrics = {"epoch": epoch, "train/loss_epoch": loss_sum / max(n_batches, 1), "train/lr": sched.get_last_lr()[0],
                    "time/epoch_s": ep_time, "train/frames_per_s": frames / ep_time}
         if device.type == "cuda":
             metrics["gpu/mem_gb"] = torch.cuda.max_memory_allocated() / 1e9
         is_eval = val_dl is not None and ((epoch + 1) % cfg["eval"]["every"] == 0 or epoch + 1 == tc["epochs"]
                                           or args.overfit or args.smoke)
+        if not main_proc:  # rank 0 evaluates and saves; the others wait for it
+            barrier()
+            if tc.get("stop_after") and epoch + 1 >= int(tc["stop_after"]):
+                break
+            continue
         if is_eval:
-            vm, examples = evaluate(model, val_dl, tok, ctc, device, amp_dtype)
+            vm, examples = evaluate(raw_model, val_dl, tok, ctc, device, amp_dtype)
             metrics.update(vm)
             for m, ex in examples.items():
                 for ref, hyp in ex[:2]:
@@ -269,7 +360,7 @@ def main():
         tracker.log(metrics, step)
         print(" ".join(f"{k}={v:.4g}" if isinstance(v, float) else f"{k}={v}" for k, v in metrics.items()), flush=True)
 
-        ck = dict(model=model.state_dict(), opt=opt.state_dict(), sched=sched.state_dict(), scaler=scaler.state_dict(),
+        ck = dict(model=raw_model.state_dict(), opt=opt.state_dict(), sched=sched.state_dict(), scaler=scaler.state_dict(),
                   epoch=epoch, step=step, best=best, run_id=tracker.run_id, cfg=cfg, n_classes=tok.n_classes)
         if is_eval and metrics["val/wer_mean"] < best:
             best = metrics["val/wer_mean"]
@@ -286,12 +377,16 @@ def main():
                        run_dir / f"epoch{epoch}.pt")
         # short ablations: keep the full-length LR schedule (train.epochs) but stop early, so the
         # curve is directly comparable epoch-for-epoch with a full run
+        barrier()
         if tc.get("stop_after") and epoch + 1 >= int(tc["stop_after"]):
             print(f"stop_after={tc['stop_after']} reached; stopping (schedule length {tc['epochs']} epochs)", flush=True)
             break
 
-    tracker.finish()
-    print(f"done. best mean val WER {best:.4f}; run dir {run_dir}", flush=True)
+    if main_proc:
+        tracker.finish()
+        print(f"done. best mean val WER {best:.4f}; run dir {run_dir}", flush=True)
+    if ddp:
+        dist.destroy_process_group()
 
 
 if __name__ == "__main__":

@@ -31,8 +31,13 @@ done
 echo "[$(stamp)] cache complete"
 
 git pull -q || echo "[$(stamp)] git pull failed; using the checked-out commit"
-echo "[$(stamp)] training $CONFIG at commit $(git rev-parse --short HEAD)"
-$PY -u scripts/train.py --config "$CONFIG" ${EXTRA_ARGS:-}
+NGPU=$(nvidia-smi -L 2>/dev/null | wc -l)
+echo "[$(stamp)] training $CONFIG at commit $(git rev-parse --short HEAD) on $NGPU GPU(s)"
+if [ "$NGPU" -gt 1 ]; then  # same recipe: the global batch is split across GPUs (see train.py)
+  $PY -m torch.distributed.run --standalone --nproc_per_node="$NGPU" scripts/train.py --config "$CONFIG" ${EXTRA_ARGS:-}
+else
+  $PY -u scripts/train.py --config "$CONFIG" ${EXTRA_ARGS:-}
+fi
 TRAIN_STATUS=$?
 echo "[$(stamp)] train.py exited with $TRAIN_STATUS"
 

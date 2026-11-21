@@ -7,6 +7,11 @@
 Writes <run>/eval_<split>_<ckpt>.csv (one row per utterance: mode, session, id, ref, hyp, errors)
 and <run>/eval_<split>_<ckpt>.json (WER per mode). Uses the run's own tokenizer and
 normalisation statistics; reports voiced and silent separately.
+
+Two WER figures per mode: wer_<mode> with our own text normalisation (lowercase, words as
+written, contractions kept), and wer_whisper_<mode> after Whisper's EnglishTextNormalizer on
+both reference and hypothesis (expands contractions, standardises spelling), which is how
+SoniGAN (Liu et al., same lab) states it scores the SoniSpeech test set.
 """
 import argparse
 import csv
@@ -24,6 +29,13 @@ from common import norm_text  # noqa: E402
 from data import BucketBatchSampler, EchoDataset, collate, load_rows, preload  # noqa: E402
 from decode import Tokenizer, greedy_decode, wer  # noqa: E402
 from model import ResNet34CTC  # noqa: E402
+
+try:
+    from whisper_normalizers import EnglishTextNormalizer  # noqa: E402
+    WHISPER_NORM = EnglishTextNormalizer()
+except ImportError as e:  # regex / more-itertools missing: skip the second figure
+    print(f"[evaluate] Whisper normaliser unavailable ({e}); reporting our WER only", flush=True)
+    WHISPER_NORM = None
 
 
 def main():
@@ -82,6 +94,10 @@ def main():
         w.writeheader()
         w.writerows(out_rows)
     result = {f"wer_{m}": wer(refs, hs) for m, (refs, hs) in sorted(by_mode.items())}
+    if WHISPER_NORM:
+        for m, (refs, hs) in sorted(by_mode.items()):
+            result[f"wer_whisper_{m}"] = jiwer.wer([WHISPER_NORM(r) or "<empty>" for r in refs],
+                                                   [WHISPER_NORM(h) or "<empty>" for h in hs])
     result.update(n_utts={m: len(v[0]) for m, v in by_mode.items()}, ckpt=str(ck_path), epoch=ck["epoch"],
                   split=args.split, train_split=cfg["split"], modes_trained=cfg["modes"])
     json.dump(result, open(f"{stem}.json", "w"), indent=1)

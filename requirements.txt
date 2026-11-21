@@ -10,3 +10,5 @@ sentencepiece==0.2.2
 torch==2.8.0
 torchvision==0.23.0
 wandb==0.26.1
+regex==2026.1.15
+more-itertools==10.8.0

@@ -7,7 +7,7 @@
 #   tmux new-session -d -s train "bash scripts/pod_pipeline.sh configs/baseline_vs.yaml"
 #
 # Env: AUTO_STOP=0 keeps the pod running afterwards; EXTRA_ARGS passed to train.py
-#      (e.g. "--set split=final").
+#      (e.g. "--set split=final"); TAG=seed1 adds --tag seed1 (run dir <name>_<split>_seed1).
 # The body is one function, so bash parses the whole file before running anything: the
 # `git pull` below can then update this script without corrupting the run in progress.
 set -uo pipefail
@@ -34,9 +34,9 @@ git pull -q || echo "[$(stamp)] git pull failed; using the checked-out commit"
 NGPU=$(nvidia-smi -L 2>/dev/null | wc -l)
 echo "[$(stamp)] training $CONFIG at commit $(git rev-parse --short HEAD) on $NGPU GPU(s)"
 if [ "$NGPU" -gt 1 ]; then  # same recipe: the global batch is split across GPUs (see train.py)
-  $PY -m torch.distributed.run --standalone --nproc_per_node="$NGPU" scripts/train.py --config "$CONFIG" ${EXTRA_ARGS:-}
+  $PY -m torch.distributed.run --standalone --nproc_per_node="$NGPU" scripts/train.py --config "$CONFIG" ${EXTRA_ARGS:-} ${TAG:+--tag "$TAG"}
 else
-  $PY -u scripts/train.py --config "$CONFIG" ${EXTRA_ARGS:-}
+  $PY -u scripts/train.py --config "$CONFIG" ${EXTRA_ARGS:-} ${TAG:+--tag "$TAG"}
 fi
 TRAIN_STATUS=$?
 echo "[$(stamp)] train.py exited with $TRAIN_STATUS"
@@ -50,14 +50,18 @@ for i, a in enumerate(args):
         cfg["split"] = a.split("=", 1)[1]
 print(f"{cfg['runs_dir']}/{cfg['run_name']}_{cfg['split']}")
 EOF
-)
+)${TAG:+_$TAG}
 # dev runs: best.pt (picked on validation) scored on val and, as a read-only diagnostic, test.
 # final runs have no validation set, so no best.pt: score last.pt on test.
 if [ -f "$RUN_DIR/best.pt" ]; then
   $PY -u scripts/evaluate.py --run "$RUN_DIR" --ckpt best --split val
   $PY -u scripts/evaluate.py --run "$RUN_DIR" --ckpt best --split test
+  # per-utterance CTC log-probs for offline LM decoding / candidate combination
+  $PY -u scripts/dump_logprobs.py --run "$RUN_DIR" --ckpt best --split val
+  $PY -u scripts/dump_logprobs.py --run "$RUN_DIR" --ckpt best --split test
 elif [ -f "$RUN_DIR/last.pt" ]; then
   $PY -u scripts/evaluate.py --run "$RUN_DIR" --ckpt last --split test
+  $PY -u scripts/dump_logprobs.py --run "$RUN_DIR" --ckpt last --split test
 fi
 
 if [ "${AUTO_STOP:-1}" = "1" ] && [ -n "${RUNPOD_POD_ID:-}" ]; then

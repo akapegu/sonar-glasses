@@ -5,12 +5,12 @@ Candidates per utterance: the LM-decoded top-1 of every model in the pool, then 
 beams of the first (strongest) model, de-duplicated in that order.
 
   # B3: ROVER-style word voting over the models' top-1 outputs (no LLM)
-  python scripts/combine.py rover --decodes A.csv B.csv C.csv --out rover_val
+  python experiments/05_llm_combination/combine.py rover --decodes A.csv B.csv C.csv --out rover_val
   # B4: off-the-shelf LLM picks/corrects (venv with transformers, GPU)
-  python scripts/combine.py llm --decodes ... --model /root/models/Qwen2.5-7B-Instruct --out llm_val
+  python experiments/05_llm_combination/combine.py llm --decodes ... --model /root/models/Qwen2.5-7B-Instruct --out llm_val
   # B5: LoRA fine-tune on validation sessions 132-138, early-stop on 139-140, then apply
-  python scripts/combine.py finetune --decodes ... --model ... --adapter-out /workspace/lisa/adapter
-  python scripts/combine.py llm --decodes ... --model ... --adapter /workspace/lisa/adapter --out lisa_test
+  python experiments/05_llm_combination/combine.py finetune --decodes ... --model ... --adapter-out /workspace/lisa/adapter
+  python experiments/05_llm_combination/combine.py llm --decodes ... --model ... --adapter /workspace/lisa/adapter --out lisa_test
 
 --decodes are the *_decode_*.csv files from lm_decode.py decode (same utterance keys in each).
 Every command writes <out>.csv (key, mode, ref, hyp) and <out>.json (metrics by mode, from
@@ -23,7 +23,7 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 from metrics import report  # noqa: E402
 

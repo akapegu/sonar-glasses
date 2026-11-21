@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Train the ResNet-34 + CTC baseline (README section 8).
 
-  python scripts/train.py --config configs/baseline_vs.yaml
-  python scripts/train.py --config configs/baseline_vs.yaml --set split=final
-  python scripts/train.py --config configs/baseline_vs.yaml --smoke 10 --set train.epochs=5
-  python scripts/train.py --config configs/baseline_vs.yaml --overfit 20 --set train.epochs=150
+  python scripts/train.py --config experiments/01_reproduction/configs/baseline_vs.yaml
+  python scripts/train.py --config experiments/01_reproduction/configs/baseline_vs.yaml --set split=final
+  python scripts/train.py --config experiments/01_reproduction/configs/baseline_vs.yaml --smoke 10 --set train.epochs=5
+  python scripts/train.py --config experiments/01_reproduction/configs/baseline_vs.yaml --overfit 20 --set train.epochs=150
 
 Run directory <runs_dir>/<run_name>_<split>[_tag]/ holds config.yaml, git commit, tokenizer,
 normalisation stats, metrics.csv, last.pt (every epoch, used to resume) and best.pt

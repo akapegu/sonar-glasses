@@ -1,0 +1,11 @@
+# LLM environment (experiments/05_llm_combination). Create with
+#   python3 -m venv --system-site-packages /root/venv-llm
+# so it reuses the pod image's torch 2.8 (CUDA 12.8, Blackwell-compatible).
+transformers==4.56.2
+accelerate==1.10.1
+peft==0.17.1
+huggingface_hub==0.35.3
+hf_transfer==0.1.9
+jiwer==4.0.0
+regex==2026.1.15
+more-itertools==10.8.0

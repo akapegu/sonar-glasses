@@ -2,7 +2,7 @@
 """External conversational text for the LM, normalised like the corpus and leakage-filtered
 (IMPROVEMENTS.md phase A2.2-A2.3).
 
-  python scripts/build_external_text.py --cache /workspace/cache/v1 --out /workspace/lm/external \
+  python experiments/04_lm_decoding/build_external_text.py --cache /workspace/cache/v1 --out /workspace/lm/external \
       --soda /workspace/lm/raw/soda_train.parquet --cornell /workspace/lm/raw/cornell_movie_dialogs_corpus.zip
 
 Sources: SODA *train* split (SoniSpeech's sentences were sampled from SODA, test from SODA

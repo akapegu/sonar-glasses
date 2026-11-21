@@ -1,6 +1,6 @@
 # eda/
 
-Phase A exploratory data analysis: HTML reports, raw metrics and written findings, one set per zip. Reproducible with `scripts/eda.py`.
+Phase A exploratory data analysis: HTML reports, raw metrics and written findings, one set per zip. Reproducible with `experiments/00_data_analysis/eda.py`.
 
 ## Naming convention
 
@@ -12,7 +12,7 @@ eda/eda_findings_<scope>.md          written summary
 
 `scope` is `zip01` … `zip09`, or `full` for the whole corpus.
 
-## Whole-corpus files (from `scripts/corpus_check.py`, run after all zips)
+## Whole-corpus files (from `experiments/00_data_analysis/corpus_check.py`, run after all zips)
 
 | File | Content |
 | --- | --- |
@@ -35,6 +35,6 @@ Reports exist for `zip01` to `zip09`; the table lists zip01, and the others have
 | `eda_zip01_06_memory.html` | Storage estimates per session, zip and corpus |
 | `eda_zip01_metrics.json` | Raw numbers behind the reports |
 
-Regenerate (from the project root): `.venv/bin/python scripts/eda.py --data data/SoniSpeech_0N_of_09 --tag zip0N`
+Regenerate: `.venv/bin/python experiments/00_data_analysis/eda.py --data data/SoniSpeech_0N_of_09 --tag zip0N`
 (zips without `echo_profiles/` use zip01's copy). 
 (about 1 min; echo-profile runs are cached in `cache/eda/`).

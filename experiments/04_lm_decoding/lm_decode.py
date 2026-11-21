@@ -2,13 +2,13 @@
 """Beam search with a word n-gram LM over saved CTC log-probs (IMPROVEMENTS.md phase A2-A5).
 
   # 1. LM from training transcripts (dev: sessions 1-131, for tuning; final: 1-140)
-  python scripts/lm_decode.py lm --cache /workspace/cache/v1 --split dev   --out /workspace/lm/dev
-  python scripts/lm_decode.py lm --cache /workspace/cache/v1 --split final --out /workspace/lm/final
+  python experiments/04_lm_decoding/lm_decode.py lm --cache /workspace/cache/v1 --split dev   --out /workspace/lm/dev
+  python experiments/04_lm_decoding/lm_decode.py lm --cache /workspace/cache/v1 --split final --out /workspace/lm/final
   # 2. tune alpha/beta on dev validation with a dev-split model and the dev LM
-  python scripts/lm_decode.py tune --logprobs /workspace/runs/baseline_vs_dev/logprobs_val_best \
+  python experiments/04_lm_decoding/lm_decode.py tune --logprobs /workspace/runs/baseline_vs_dev/logprobs_val_best \
       --tokenizer /workspace/runs/baseline_vs_dev/tokenizer.model --lm /workspace/lm/dev
   # 3. score test once with the frozen settings
-  python scripts/lm_decode.py decode --logprobs /workspace/runs/final_vs_final/logprobs_test_last \
+  python experiments/04_lm_decoding/lm_decode.py decode --logprobs /workspace/runs/final_vs_final/logprobs_test_last \
       --tokenizer /workspace/runs/final_vs_final/tokenizer.model --lm /workspace/lm/final \
       --alpha A --beta B --beam 128 --oov-ref-split final
 
@@ -28,7 +28,7 @@ from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 from metrics import report, wnorm  # noqa: E402
 

@@ -5,7 +5,7 @@ Writes self-contained HTML reports, metrics JSON and a markdown summary to eda/.
 Every number in the reports is computed here.
 
 Usage (from the repo root):
-    .venv/bin/python scripts/eda.py --data data/SoniSpeech_01_of_09 --tag zip01
+    .venv/bin/python experiments/00_data_analysis/eda.py --data data/SoniSpeech_01_of_09 --tag zip01
 
 Naming convention for reports: eda/eda_<tag>_<NN>_<topic>.html
     00 index, 01 inventory, 02 audio, 03 transcripts, 04 echo profiles,
@@ -34,6 +34,8 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from scipy.io import wavfile
 from scipy import signal
+
+HERE = Path(__file__).resolve().parent  # experiments/00_data_analysis
 
 FS = 100_000
 FRAME = 500
@@ -602,7 +604,7 @@ def page(tag, nn, title, body, meta):
 <nav>{nav}</nav>
 <h1>{html.escape(title)}</h1>
 <div class="sub">SoniSpeech baseline · Phase A EDA · data: <code>{html.escape(meta['data'])}</code> ·
-generated {meta['when']} by <code>scripts/eda.py</code></div>
+generated {meta['when']} by <code>experiments/00_data_analysis/eda.py</code></div>
 {body}
 </div></body></html>"""
 
@@ -641,8 +643,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True, help="extracted zip root (contains SoniSpeech_* and echo_profiles/)")
     ap.add_argument("--tag", required=True, help="short id for the data scope, e.g. zip01")
-    ap.add_argument("--out", default="eda")
-    ap.add_argument("--cache", default="cache/eda")
+    ap.add_argument("--out", default=str(HERE / "eda"))
+    ap.add_argument("--cache", default=str(HERE.parents[1] / "cache" / "eda"))
     ap.add_argument("--profile-sessions", nargs="*", default=None,
                     help="sessions for echo profiles, e.g. voiced_train/session_010")
     ap.add_argument("--_child", nargs=2, help=argparse.SUPPRESS)
@@ -954,7 +956,7 @@ Median session length here is {np.median(sess_s):.0f} s ({np.median(sess_s) * FP
     print("wrote", ", ".join(fname(T, n, t) for n, t, _ in PAGES))
 
     # ---- docs/eda_findings.md
-    md = [f"# EDA findings ({T})", "", f"Generated {meta['when']} by `scripts/eda.py` from `{data_root.name}`. "
+    md = [f"# EDA findings ({T})", "", f"Generated {meta['when']} by `experiments/00_data_analysis/eda.py` from `{data_root.name}`. "
           f"HTML reports: `eda/eda_{T}_*.html`.", ""]
     strip = lambda s: re.sub(r"<[^>]+>", "", s).replace("&lt;", "<").replace("&gt;", ">")
     for k, msg in summary:

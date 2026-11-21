@@ -6,7 +6,7 @@ For every session (one worker process each, run in parallel):
   2. differential profile |p_t| - |p_(t-1)|, 4 paths [s0m0, s0m1, s1m0, s1m1], bins 226:306
   3. one sample per transcript utterance:
        first = floor((start*100000 - start_pos) / 500), last = ceil((end*100000 - start_pos) / 500)
-  4. screen: drop utterances on eda/drop_list.csv or with a rail-to-rail jump (> 30000)
+  4. screen: drop utterances on experiments/00_data_analysis/eda/drop_list.csv or with a rail-to-rail jump (> 30000)
   5. save float16 (4, 80, T) as <out>/<mode>_<part>/session_NNN/<utt_id>.npy
      plus <out>/<mode>_<part>/session_NNN/session.json (all rows, kept and dropped)
 Then merge every session.json into <out>/manifest.csv.
@@ -185,7 +185,7 @@ def main():
     ap.add_argument("--data", nargs="*", default=[], help="extracted zip roots (contain SoniSpeech_*_* folders)")
     ap.add_argument("--out", required=True, help="cache directory")
     ap.add_argument("--code", help="official echo_profiles/ dir (default: found next to the data)")
-    ap.add_argument("--drop-list", default=str(ROOT / "eda" / "drop_list.csv"))
+    ap.add_argument("--drop-list", default=str(ROOT / "experiments" / "00_data_analysis" / "eda" / "drop_list.csv"))
     ap.add_argument("--workers", type=int, default=default_workers())
     ap.add_argument("--only", nargs="*", help="limit to sessions like voiced_train/session_001")
     ap.add_argument("--crop", nargs=2, type=int, default=list(CROP), metavar=("FIRST", "END"),

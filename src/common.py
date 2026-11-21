@@ -1,6 +1,6 @@
 """Constants and rules shared by preprocessing, tokenizer, data loading and evaluation.
 
-Everything here was settled in Phase A (see README sections 1, 3, 4 and eda/).
+Everything here was settled in Phase A (see docs/reproduction_spec.md sections 1, 3, 4 and experiments/00_data_analysis/eda/).
 """
 import re
 

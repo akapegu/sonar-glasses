@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Render the real-data figures used by explainer/data_and_preprocessing.html.
 
-Needs the cached echo-profile runs from scripts/eda.py (cache/eda/zip02/...).
-Usage (from the project root):  .venv/bin/python scripts/make_explainer_figs.py
+Needs the cached echo-profile runs from eda.py (cache/eda/zip02/...).
+Usage:  .venv/bin/python experiments/00_data_analysis/make_explainer_figs.py
 """
 import json
 import math
@@ -19,9 +19,11 @@ from scipy.io import wavfile
 FS, FRAME, FPS = 100_000, 500, 200
 LO = 150  # cached arrays hold range bins 150:400
 CROP = (226, 306)
-OUT = Path("explainer/img")
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
+OUT = HERE / "explainer" / "img"
 OUT.mkdir(parents=True, exist_ok=True)
-DATA = Path("data/SoniSpeech_02_of_09")
+DATA = ROOT / "data" / "SoniSpeech_02_of_09"
 VOICED = ("voiced_train", "session_076")
 SILENT = ("silent_train", "session_086")
 PATHS = ["s0m0", "s0m1", "s1m0", "s1m1"]
@@ -42,7 +44,7 @@ def save(fig, name):
 
 
 def cache(split_sess):
-    d = Path("cache/eda/zip02") / f"{split_sess[0]}__{split_sess[1]}"
+    d = ROOT / "cache" / "eda" / "zip02" / f"{split_sess[0]}__{split_sess[1]}"
     st = json.load(open(d / "stats.json"))
     return (np.load(d / "absprof_crop.npy", mmap_mode="r"), np.load(d / "diff_crop.npy", mmap_mode="r"), st["start_pos"])
 

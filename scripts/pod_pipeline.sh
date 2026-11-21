@@ -4,7 +4,7 @@
 # the GPU stops billing.
 # The network volume (/workspace: cache, runs, logs) survives the stop.
 #
-#   tmux new-session -d -s train "bash scripts/pod_pipeline.sh configs/baseline_vs.yaml"
+#   tmux new-session -d -s train "bash scripts/pod_pipeline.sh experiments/03_final_recipe/configs/final_vs.yaml"
 #
 # Env: AUTO_STOP=0 keeps the pod running afterwards; EXTRA_ARGS passed to train.py
 #      (e.g. "--set split=final"); TAG=seed1 adds --tag seed1 (run dir <name>_<split>_seed1).
@@ -13,7 +13,7 @@
 set -uo pipefail
 
 main() {
-CONFIG=${1:-configs/baseline_vs.yaml}
+CONFIG=${1:-experiments/01_reproduction/configs/baseline_vs.yaml}
 cd "$(dirname "$0")/.."
 LOG=/workspace/logs
 PY=/workspace/venv/bin/python

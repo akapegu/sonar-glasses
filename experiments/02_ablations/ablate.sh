@@ -3,7 +3,7 @@
 # Each run keeps the full 200-epoch LR schedule but stops after STOP_AFTER epochs, so its
 # validation curve is comparable epoch-for-epoch with baseline_vs_dev.
 #
-#   tmux new-session -d -s ablate "bash scripts/ablate.sh configs/baseline_vs.yaml \
+#   tmux new-session -d -s ablate "bash experiments/02_ablations/ablate.sh experiments/01_reproduction/configs/baseline_vs.yaml \
 #       'rs1222|model.range_stride=[1,2,2,2]' 'aug2|aug.time_masks=6 aug.range_mask_max=16' \
 #       2>&1 | tee -a /workspace/logs/ablate.log"
 #
@@ -13,7 +13,7 @@ set -uo pipefail
 
 main() {
 CONFIG=$1; shift
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 PY=/workspace/venv/bin/python
 STOP_AFTER=${STOP_AFTER:-40}
 [ -f /etc/rp_environment ] && source /etc/rp_environment

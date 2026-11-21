@@ -108,7 +108,7 @@ Results (2026-11-22), test, final_vs epoch 199, Whisper-normalised (ours in brac
 - OOV recall is ~0 even greedy: the model does not spell unseen words (260
   test-only word types here vs SoniGAN's 242). The external-text LM (A2.2) is the
   only lever for these.
-- Code: scripts/dump_logprobs.py, scripts/lm_decode.py, src/metrics.py. Outputs:
+- Code: scripts/dump_logprobs.py, experiments/04_lm_decoding/lm_decode.py, src/metrics.py. Outputs:
   /workspace/runs/*/logprobs_*_decode_*.{json,csv} (CSV includes top-10 beams).
 
 **Success criterion:** silent test WER below 26.3% with an LM. State clearly

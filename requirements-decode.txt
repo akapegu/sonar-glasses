@@ -1,0 +1,12 @@
+# Decoding environment (experiments/04_lm_decoding): pyctcdecode needs numpy < 2,
+# so keep it separate from the training venv. KenLM's Python module is built from
+# a clone: pip install /path/to/kenlm (binaries: cmake build of lmplz and build_binary).
+numpy<2
+pyctcdecode==0.5.0
+jiwer==4.0.0
+regex==2026.1.15
+more-itertools==10.8.0
+sentencepiece==0.2.2
+PyYAML==6.0.3
+num2words==0.5.14
+pyarrow==17.0.0

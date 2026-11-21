@@ -276,6 +276,11 @@ def main():
         tmp = run_dir / "last.pt.tmp"
         torch.save(ck, tmp)
         tmp.replace(last)
+        # snapshot fixed epochs (model weights only) so short ablations and full runs can be
+        # compared at the same epoch on any split, e.g. epoch39.pt -> evaluate.py --ckpt epoch39
+        if epoch in tc.get("keep_epochs", [39]):
+            torch.save({k: v for k, v in ck.items() if k not in ("opt", "sched", "scaler")},
+                       run_dir / f"epoch{epoch}.pt")
         # short ablations: keep the full-length LR schedule (train.epochs) but stop early, so the
         # curve is directly comparable epoch-for-epoch with a full run
         if tc.get("stop_after") and epoch + 1 >= int(tc["stop_after"]):

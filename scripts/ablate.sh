@@ -27,8 +27,15 @@ for item in "$@"; do
   TAGS+=("$tag")
   echo "[$(stamp)] === $tag: $overrides (stop after $STOP_AFTER)"
   # shellcheck disable=SC2086
-  $PY -u scripts/train.py --config "$CONFIG" --tag "$tag" --set train.stop_after="$STOP_AFTER" $overrides \
-    || echo "[$(stamp)] $tag failed"
+  if $PY -u scripts/train.py --config "$CONFIG" --tag "$tag" --set train.stop_after="$STOP_AFTER" $overrides; then
+    run=$($PY -c "import yaml,sys; c=yaml.safe_load(open(sys.argv[1])); print(f\"{c['runs_dir']}/{c['run_name']}_dev_$tag\")" "$CONFIG")
+    # test scores are for information only: settings are chosen on validation
+    for split in val test; do
+      $PY -u scripts/evaluate.py --run "$run" --ckpt best --split $split | grep -E '"wer_|"epoch"' | tr -d '\n'; echo "  <- $tag $split"
+    done
+  else
+    echo "[$(stamp)] $tag failed"
+  fi
 done
 
 echo "[$(stamp)] summary (last validation of each run; baseline = baseline_vs_dev at the same epoch)"

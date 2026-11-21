@@ -83,11 +83,33 @@ Baseline rows to beat (Whisper-normalised, final_vs):
 
 ### A5. Report
 
-| Decoder | LM text | Voiced | Silent | OOV recall |
+| Decoder | LM text | Voiced | Silent | OOV recall (V / S) |
 | --- | --- | --- | --- | --- |
-| Greedy | none | | | |
-| Beam | in-domain | | | |
-| Beam | in-domain + external | | | |
+| Greedy | none | 18.1% (ours 19.2%) | 29.4% (ours 30.6%) | 1.1% / 0.4% |
+| Beam | in-domain | **15.1%** (ours 16.0%) | **24.2%** (ours 25.4%) | 0.4% / 0.0% |
+| Beam | in-domain + external | not run yet | | |
+
+Results (2026-11-22), test, final_vs epoch 199, Whisper-normalised (ours in brackets):
+
+- LM: KenLM word 4-gram on the 7,002 unique training sentences of sessions 1-140
+  (4,791 word types; SoniGAN's lexicon has 4,789). Out-of-LM words are penalised,
+  not forbidden (pyctcdecode unk_score_offset).
+- Settings tuned on dev validation with baseline_vs_dev + a sessions 1-131 LM:
+  alpha 0.5, beta 2.0, beam 128 (beam 512: no gain). Dev val: greedy 25.5 / 31.8
+  -> 20.1 / 25.6. The optimum is flat over alpha 0.35-0.5, beta 1-2.
+- Test scored once with those settings. Dev baseline on test: 21.2 / 32.5 -> 17.1 / 26.7.
+- Silent with LM (24.2%) is below the paper's 26.3%, which uses no LM, so this is
+  not a like-for-like comparison. SoniGAN's lexicon + 4-gram step on its own
+  (stronger) recognizer gave -3.4 points; here it gives -5.2 on silent.
+- Perfect sentences: voiced 23.0% -> 29.1%, silent 9.5% -> 15.4%. Sentences more
+  than half wrong: silent 11.9% -> 8.0%.
+- Reference-word error by position (silent, greedy -> LM): first word 15.4 -> 11.9,
+  first three 17.1 -> 13.0, middle 30.6 -> 25.1, last 30.6 -> 27.6.
+- OOV recall is ~0 even greedy: the model does not spell unseen words (260
+  test-only word types here vs SoniGAN's 242). The external-text LM (A2.2) is the
+  only lever for these.
+- Code: scripts/dump_logprobs.py, scripts/lm_decode.py, src/metrics.py. Outputs:
+  /workspace/runs/*/logprobs_*_decode_*.{json,csv} (CSV includes top-10 beams).
 
 **Success criterion:** silent test WER below 26.3% with an LM. State clearly
 that the paper's number has no LM.

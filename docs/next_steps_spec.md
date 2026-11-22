@@ -3,8 +3,9 @@
 This is a spec for Claude Code. It follows `docs/improvements_spec.md`
 (phases A and B are done; see `experiments/04` and `05`).
 
-Current best on test (Whisper-normalised): **11.1% voiced / 19.6% silent**
-(final_vs, epoch 199, beam search with an external-text 4-gram LM).
+Current best on test (Whisper-normalised): **10.2% voiced / 18.0% silent**
+(ROVER over three final_vs seeds, each decoded with an external-text 4-gram LM;
+strict 798-sentence subset: 10.9% / 19.1%).
 
 **Timebox: about 2 weeks.** Prioritise changes that carry over to our own rig
 and to new users. Skip changes that only help on this benchmark.
@@ -105,9 +106,10 @@ Evidence: final words are often dropped ("broken my arm" → "put my").
 
 1. Finish seeds 1 and 2 of final_vs. Report the mean and spread of test WER
    (greedy and with LM). This sets how big a gain counts as real.
-2. **Seed ensemble (cheap, do first).** Average the three seeds' per-frame log-probabilities
-   (they share the tokenizer), then decode with the LM as usual. Typically 1–2 points; no LLM.
-   Tune nothing new: reuse alpha/beta from step 1.
+2. **Seed ensemble: done (2026-11-22).** Averaging the seeds' per-frame posteriors fails for
+   CTC (spikes fall on different frames; 18.1 / 29.4 → 18.9 / 31.8 greedy). Word-level ROVER
+   over the three seeds works: 10.2% voiced / 18.0% silent on test, the current best. Seed
+   spread: about 0.1 points greedy, 0.5 points silent with the LM.
 3. **N-best rescoring instead of rewriting.** Candidates: the top-10 beams of
    each model in the pool, de-duplicated. Score each candidate as
    `CTC/LM beam score + λ × LLM log-likelihood` (length-normalised) using a base
@@ -116,7 +118,9 @@ Evidence: final words are often dropped ("broken my arm" → "put my").
 4. Compare on dev validation, then test, against: the best single model, the seed ensemble,
    ROVER, and the off-the-shelf LLM rewrite from experiment 05. Report WER and the share of
    outputs with a word in no candidate.
-5. **Required before reporting any LLM result on test: a memorisation check.** SODA has been
+5. **Memorisation check: done.** Qwen2.5-7B continues 0.24% of test sentences exactly
+   (train 0.10%, Cornell 0.00%): no sign of contamination. Kept here for future LLMs.
+   Original requirement: **before reporting any LLM result on test, run a memorisation check.** SODA has been
    public on Hugging Face since 2022, so Qwen2.5 has very likely seen it, including SODA's
    test split, where our test sentences come from. Give the LLM the first 3 words of each test
    sentence and measure the exact-continuation rate against control sentences not in SODA

@@ -21,12 +21,17 @@ averaged, which equals single-GPU training (checked: loss and gradients match to
 | Run | Voiced, Whisper (ours) | Silent, Whisper (ours) |
 | --- | --- | --- |
 | `final_vs_final` (seed 0) | **18.1%** (19.2%) | **29.4%** (30.6%) |
-| `final_vs_final_seed1` | running | |
-| `final_vs_final_seed2` | running | |
+| `final_vs_final_seed1` | 18.0% (19.0%) | 29.4% (30.8%) |
+| `final_vs_final_seed2` | 18.1% (19.2%) | 29.3% (30.6%) |
+| **Mean ± std of 3 seeds** | **18.06 ± 0.08%** | **29.37 ± 0.05%** |
 | Paper | 15.8% | 26.3% |
 | SoniGAN's retrained ResNet-34 (200 sentences) | — | 30.4% |
 
 Gap to the paper (Whisper): +2.3 voiced, +3.1 silent, down from +5.4 / +6.2 for the dev baseline.
+
+The seed spread at epoch 199 is about 0.1 points, although at epoch 39 the seeds differed by
+1–2 points (seed 0: 22.8 / 35.0, seed 1: 23.8 / 35.9, seed 2: 24.0 / 36.8). With this recipe
+the final result is stable, so a lucky seed cannot explain the paper's 26.3%.
 
 Test WER during training (informational only; the reported number is epoch 199):
 

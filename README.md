@@ -5,10 +5,10 @@ on the public SoniSpeech dataset: eyeglasses with two speakers and two microphon
 inaudible FMCW chirps (18–39 kHz) and read lip and jaw movement from the echoes.
 
 **Status (2026-11-22).** The baseline is reproduced to within about 2.5–3 points of the paper
-(greedy decoding, no language model). A 4-gram language model trained on the transcripts plus
-leakage-filtered conversational text takes test WER to 11.1% voiced / 19.6% silent.
+(greedy decoding, no language model; three seeds agree to 0.1 points). A 4-gram language model
+trained on the transcripts plus leakage-filtered conversational text, and a word-level vote
+over three seeds, take test WER to 10.2% voiced / 18.0% silent.
 An LLM that corrects the candidates from several models gives the best results so far on dev
-validation. Extra seeds and the test-set run of the LLM step are in progress.
 
 ## Headline results (test set, 1,000 sentences per mode)
 
@@ -21,14 +21,16 @@ are in every experiment README.
 | Paper: SoniSpeech baseline, greedy, no LM (scoring not stated) | 15.8% | 26.3% | — |
 | SoniGAN's retrained ResNet-34 (200 test sentences) | — | 30.4% | — |
 | Ours, dev baseline (paper recipe, sessions 1–131), greedy | 21.2% | 32.5% | [01_reproduction](experiments/01_reproduction) |
-| **Ours, final recipe (sessions 1–140), greedy** | **18.1%** | **29.4%** | [03_final_recipe](experiments/03_final_recipe) |
+| **Ours, final recipe (sessions 1–140), greedy, mean of 3 seeds** | **18.1%** | **29.4%** | [03_final_recipe](experiments/03_final_recipe) |
 | Ours, final recipe + in-domain 4-gram LM | 15.1% | 24.2% | [04_lm_decoding](experiments/04_lm_decoding) |
-| **Ours, final recipe + 4-gram LM with external conversational text** | **11.1%** | **19.6%** | [04_lm_decoding](experiments/04_lm_decoding) |
+| Ours, final recipe + 4-gram LM with external conversational text | 11.1% | 19.6% | [04_lm_decoding](experiments/04_lm_decoding) |
+| **Ours, ROVER vote over 3 seeds (each + external-text LM)** | **10.2%** | **18.0%** | [05_llm_combination](experiments/05_llm_combination) |
 | SoniGAN full system (synthetic data, crossCon, 160 sessions, LM, LLM, ensemble) | — | 14.9% | — |
 
-Dev validation (tuning only, never used for the reported test numbers): an off-the-shelf
-Qwen2.5-7B choosing among five models' candidates takes 20.1 / 25.6 down to 17.4 / 22.8
-([05_llm_combination](experiments/05_llm_combination)).
+On the strict test subset (798 sentences with no near-copy in the LM's external text) the
+best system reads 10.9% voiced / 19.1% silent. An off-the-shelf Qwen2.5-7B choosing among the
+three seeds' candidates ties ROVER on silent (18.0%) but invents words in about 12% of outputs.
+Seed spread of the greedy result: about 0.1 points.
 
 ## Layout
 

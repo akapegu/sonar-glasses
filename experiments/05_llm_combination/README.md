@@ -63,5 +63,26 @@ fluently but change the meaning, almost always where the candidates were already
 started" (reference: "how did the fire start"). When the candidates are nonsense, the LLM writes
 plausible text instead of flagging uncertainty.
 
-Test results wait for the two extra final-recipe seeds (test-time pool: final models + the
-dev models).
+## Memorisation check (required before reporting LLM results on test)
+
+`memorisation_check.py` gives Qwen2.5-7B the first 3 words of a sentence and counts exact
+5-word continuations: **test 0.24%** (2 of 849), SoniSpeech training sentences 0.10%
+(1 of 1,000), Cornell control 0.00% (0 of 1,000). No sign that the LLM has memorised the test
+sentences, although SODA is public.
+
+## Results on test (scored once)
+
+Pool: the three final-recipe seeds, each decoded with the external-text LM (alpha 0.75,
+beta 3.0), plus seed 0's top-10 beams. Whisper WER, ours in brackets; "strict" = the 798 test
+sentences with no one-word-different copy in the LM text.
+
+| Method | Voiced | Silent | Strict V / S | Outputs with a word in no candidate (V / S) |
+| --- | --- | --- | --- | --- |
+| Seed 0 + external LM | 11.1% (11.9%) | 19.6% (20.6%) | 11.9% / 20.8% | 0% / 0% |
+| **ROVER over 3 seeds** | **10.2%** (10.9%) | **18.0%** (18.8%) | **10.9% / 19.1%** | 0% / 0% |
+| Qwen2.5-7B zero-shot over 3 seeds | 10.5% (11.4%) | 18.0% (19.0%) | 10.9% / 18.8% | 12.8% / 11.4% |
+
+With three equally strong models, plain word voting matches the LLM on silent and beats it on
+voiced, without inventing words. On dev validation the LLM gained more (−2.7 points) because
+that pool had one strong model and four weak ones, which voting cannot exploit. ROVER over
+the seeds is the best method so far.

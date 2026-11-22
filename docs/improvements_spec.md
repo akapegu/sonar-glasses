@@ -173,10 +173,12 @@ sessions 132–140.
 
 | Method | Voiced | Silent |
 | --- | --- | --- |
-| Best phase A | | |
-| ROVER vote | | |
-| LLM, off the shelf | | |
-| LLM, fine-tuned | | |
+| Best phase A (seed 0 + external LM) | 11.1% | 19.6% |
+| ROVER vote over 3 seeds | **10.2%** | **18.0%** |
+| LLM, off the shelf (Qwen2.5-7B) | 10.5% | 18.0% |
+| LLM, fine-tuned (LoRA) | not better than zero-shot on held-out dev sessions | |
+
+Test, Whisper-normalised. Details: experiments/05_llm_combination.
 
 ---
 

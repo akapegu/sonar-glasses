@@ -86,6 +86,16 @@ Test, scored once with alpha 0.75, beta 3.0 (final LM: sessions 1–140 ×100 + 
 | final_vs | in-domain | 15.1% (16.0%) | 24.2% (25.4%) | 0.4% / 0.0% |
 | final_vs | **in-domain + external** | **11.1%** (11.9%) | **19.6%** (20.6%) | 4.0% / 1.8% |
 | baseline_vs_dev | in-domain + external (dev LM) | 13.2% (14.1%) | 21.8% (23.0%) | 3.8% / 3.1% |
+| final_vs seed 1 | in-domain + external | 11.1% (11.9%) | 18.8% (19.8%) | |
+| final_vs seed 2 | in-domain + external | 11.3% (12.1%) | 18.8% (19.8%) | |
+| **3 seeds, mean ± std** | in-domain + external | **11.2 ± 0.1%** | **19.1 ± 0.5%** | |
+| 3 seeds, averaged posteriors | in-domain + external | 14.4% (15.4%) | 23.8% (25.0%) | ✗ worse |
+
+**Averaging CTC posteriors across seeds does not work** (`ensemble_logprobs.py`): greedy WER
+rises from 18.1 / 29.4 to 18.9 / 31.8. Independently trained CTC models emit each token as a
+spike on a single frame, and the spikes fall on different frames in different models; averaging
+flattens them until blank wins and words drop out. Seeds have to be combined at the word level
+instead (ROVER, see [05_llm_combination](../05_llm_combination)).
 
 ### Leakage check on the test gain
 

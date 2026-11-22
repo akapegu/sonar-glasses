@@ -37,6 +37,7 @@ README.md                  this file
 docs/
   reproduction_spec.md     the original spec for reproducing the paper (data facts, splits, recipe)
   improvements_spec.md     the spec for going beyond the paper (phases A-D)
+  next_steps_spec.md       the 2-week plan toward ~15-17% silent, the data-scaling test, the rig
   runpod.md                how the cloud runs work (pods, volume, pipeline, gotchas)
 src/                       library code shared by everything
   common.py                constants, splits, drop rules, text normalisation

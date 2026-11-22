@@ -211,10 +211,28 @@ Rough path, to be revised with the step-0b scaling fit:
 | Product context: personal LM, conversation context, user-selectable suggestions | <10% in real use |
 
 No published open-vocabulary silent-speech system from minimally obtrusive sensing is below
-10% today (EMG with an LLM: 12.2%; SoniGAN: 14.9%). Product claims of 3–5% should be compared
-only after checking the sensor, the vocabulary (closed or open), the context used and how WER
-is scored. If step 0b shows a high floor, the lever is the hardware: more acoustic paths,
-wider bandwidth for finer range resolution, or an extra sensor such as a jaw IMU.
+10% today (EMG with an LLM: 12.2%; SoniGAN: 14.9%).
+
+**Subvocal (YC Fall 2026), for comparison** (company statements, Nov 2026; no test set published):
+- Sensing: low-power RF from antennas in the glasses frame, sent *through* the face; it picks up
+  tongue and jaw movement under the skin (users need not open the mouth). They tried EMG,
+  webcam (about 17% WER; "15–20% is the limit" for lip shapes), IMU (only a few-word
+  classification) and RF, and chose RF.
+- Accuracy: "8–15% on an unseen user as of now" with a 20-sentence calibration and language
+  context; "likely 3–5%" at shipping after scaling pretraining. The 3–5% is a projection.
+- Data: hundreds of hours on the founders, then paid booth sessions of people reading prompts
+  to pretrain multi-user models; plan for thousands of hours of population-scale data.
+  "Errors fell quickly as we scaled our dataset" (not quantified).
+- Sources: subvocal.company, ycombinator.com/launches/Wf9-the-subvocal-company-talk-without-talking,
+  news.ycombinator.com/item?id=50340088.
+
+What it means for us: our 18–39 kHz ultrasound reflects off the skin (the air–tissue boundary
+reflects almost all of it), so we measure surface motion (lips, cheeks, jaw), like lip reading,
+while RF can sense the tongue. More data will help us too, but our floor is likely higher;
+step 0b measures it. If the floor comes out near or above ~12%, the most valuable rig change is
+sensing below the surface (an RF channel), or at least more acoustic paths and wider bandwidth.
+Their recipe for new users (multi-user pretraining from paid prompt-reading sessions plus a
+short calibration) is the one to copy; self-labelled voiced data (step 7.5) is the cheap version.
 
 ---
 

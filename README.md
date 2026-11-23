@@ -64,6 +64,7 @@ experiments/
   03_final_recipe/         the chosen recipe trained on sessions 1-140, plus extra seeds
   04_lm_decoding/          phase A: n-gram LM beam search, external text, leakage filter
   05_llm_combination/      phase B: ROVER voting, LLM correction, LoRA fine-tuning
+  06_phoneme_analysis/     phoneme error rate, per-sound recall and confusions on test
 data/ cache/ runs/         local data, preprocessing cache and run outputs (gitignored)
 ```
 

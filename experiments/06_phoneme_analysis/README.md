@@ -54,9 +54,71 @@ F 89%, AY 88%, TH 86%, M 85%, B 83%.
   share a place of articulation and differ only in the vocal folds or the soft palate, which no
   surface sensor can see. In silent speech there is no voicing at all, so these pairs can only
   be resolved by the language model.
-- **Deletions are as common as substitutions in silent speech** (10.3% vs 11.3%), and the LM
-  does not reduce them (10.6%): whole short words and unstressed syllables leave too little
-  surface motion to register. The LM fixes substitutions (11.3 → 6.9) but not deletions.
+- **At the phoneme level, deletions are as common as substitutions in silent speech** (10.3%
+  vs 11.3%), and the LM does not reduce them (10.6%). The LM fixes substitutions (11.3 → 6.9)
+  but not deletions. At the word level the picture is milder: deletions are about a third of
+  silent errors (see the next section), and part of the phoneme-level deletion count comes from
+  wrong words that are shorter than the right ones.
 - **Only about a quarter of substitutions stay inside one viseme class** (25–27%; vowel classes
   here are coarse), so most errors are not simply look-alike sounds; many come from wrong or
   garbled words.
+
+## Where word deletions happen (`deletion_analysis.py`)
+
+```bash
+.venv/bin/python experiments/06_phoneme_analysis/deletion_analysis.py \
+    --csv <run>/logprobs_test_last_decode_final_ext_a0.75_b3.0_w128.csv --cols greedy hyp \
+    --data data --tokenizer <run>/tokenizer.model
+```
+
+Word level, final_vs seed 0 with the external-text LM, test, silent: substitutions 11.4%,
+deletions 7.2%, insertions 1.0%. We checked the premises of three proposed deletion fixes
+(margins at the utterance end, 8× instead of 16× downsampling, a blank penalty) against this data.
+
+**There is no end-of-sentence effect: the apparent one is an alignment artifact.** When an output
+is one word short and the neighbouring words differ, either word can be counted as deleted at
+the same cost. jiwer puts the deletion as late as possible, which piles deletions onto the last
+word. Counting only deletions that land on the same word under both tie-breaks ("clean"):
+
+| Silent, with LM | First word | Middle | Last word |
+| --- | --- | --- | --- |
+| jiwer-style alignment | 1.8% | 7.3% | 11.9% |
+| clean (same under both tie-breaks) | 1.8% | 4.0% | 2.4% |
+
+Two alignment-free checks agree: the reference's last word is among the output's last two
+words in 76% of silent sentences (84% voiced), and of 468 silent outputs that are too short, 308
+still end on the right last word and only 16 end on the second-to-last word (a truncation).
+The model's output length also matches `ResNet34CTC.out_lengths` (ceil of T/16) for every input
+length from 16 to 1,200 frames, so no output step is lost. Clean deletions are similar for
+function and content words (3.9% vs 4.1% mid-sentence). So: no case for adding margins at the
+utterance end.
+
+**Speaking rate does not drive deletions after the LM.** Durations come from the raw
+`transcript.json` files (segments are back-to-back, so a duration includes the pause before
+the sentence). Silent, with LM:
+
+| Words per second | WER | Subst. | Deletions (clean / merge) | Insertions |
+| --- | --- | --- | --- | --- |
+| 1.6–2.5 (slowest fifth) | 25.6% | 17.3% | 6.6% (2.9 / 3.7) | 1.7% |
+| 2.5–2.8 | 21.2% | 12.7% | 7.4% (3.5 / 3.9) | 1.1% |
+| 2.8–3.0 | 20.7% | 11.6% | 7.9% (4.1 / 3.8) | 1.1% |
+| 3.0–3.2 | 19.1% | 10.8% | 7.5% (4.0 / 3.5) | 0.8% |
+| 3.2–4.3 (fastest fifth) | 15.0% | 7.9% | 6.6% (3.9 / 2.7) | 0.5% |
+
+The correlation of speaking rate with a sentence's deletion rate is 0.00 (voiced 0.01). At 16×
+downsampling the densest test sentence needs 0.54 tokens per output step (median 0.29), well
+under CTC's limit of about 1, so the model has room for every token. Tokens per step does
+correlate with deletions (+0.23), but just as much with substitutions (+0.27), because it mostly
+measures word rarity: rare words split into more pieces (correlation with tokens per word
++0.72). Rarity predicts deletions about 4× more strongly than speed (+2.2 vs +0.5 points per
+standard deviation). In greedy outputs, before the LM, clean deletions do rise with speed
+(silent 1.8% → 4.8%), but the LM recovers them. So: no case for 8× downsampling as a deletion
+fix.
+
+**What did work: a blank penalty in the decoder** (subtract a constant from the CTC blank's
+log-probability before beam search; see [04_lm_decoding](../04_lm_decoding)). It cut silent
+deletions from 7.2% to 4.9% (voiced 3.3% → 2.2%) at a cost of +0.5 substitutions and +0.4
+insertions, and lowered test WER by 0.9 / 1.4 points (seed 0).
+
+Token densities above use the dev smoke run's 1,000-piece tokenizer (the final run's tokenizer
+is trained the same way on slightly more text), so they are approximate.

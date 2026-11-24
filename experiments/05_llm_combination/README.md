@@ -86,3 +86,67 @@ With three equally strong models, plain word voting matches the LLM on silent an
 voiced, without inventing words. On dev validation the LLM gained more (−2.7 points) because
 that pool had one strong model and four weak ones, which voting cannot exploit. ROVER over
 the seeds is the best method so far.
+
+## Selection-only reranking (`combine.py rerank`)
+
+The LLM rewrite above invents words in about 12% of outputs, and LoRA made that worse. Here the
+LLM never writes text: it only scores candidates, and the output is always one of them. Per
+utterance, every candidate (the pool's top-1 outputs plus the strongest model's top-10 beams)
+gets four features, and the highest weighted sum wins:
+
+| Feature | What it is |
+| --- | --- |
+| `llm` | Qwen2.5-7B log-probability of the candidate as plain text (after a fixed one-line prefix, including a closing newline) |
+| `agree` | minus the mean word edit distance to the pool's top-1 outputs (a consensus / minimum-Bayes-risk term) |
+| `dec` | the strongest model's beam score (LM included); candidates not in its top 10 get its 10th score |
+| `nw` | number of words (a length bonus) |
+
+The weights are found by grid search (2,205 combinations of the four) on dev validation, with
+the dev pool (`baseline_vs_dev` plus the four 40-epoch ablation models, each decoded with the dev
+external LM), and then frozen for test. As a second check, `--cv-folds 2` tunes on half the test
+sessions and scores the other half, both ways (the sentence sets of the two halves are
+disjoint). The best weights with `llm` fixed at 0 are also reported, to show what the LLM adds.
+Scoring 16,500 candidates takes about 5 minutes on an A100.
+
+```bash
+L=/root/venv-llm/bin/python; X=experiments/05_llm_combination; Q=/root/models/Qwen2.5-7B-Instruct
+$L $X/combine.py rerank --decodes <5 dev-pool val decodes> --model $Q --out /workspace/lisa/rerank_val_a0.75_b1.5_bp2.0
+$L $X/combine.py rerank --decodes <3 seed test decodes> --model $Q --cv-folds 2 \
+    --weights /workspace/lisa/rerank_val_a0.75_b1.5_bp2.0_weights.json --out /workspace/lisa/rerank_test_a0.75_b1.5_bp2.0
+```
+
+Weights tuned on dev validation for the blank-penalty decodes: with LLM `llm 0.75, agree 4,
+dec 0.5, nw 4`; without `agree 16, dec 0.1, nw 3`. Dev validation itself (in-sample, so
+optimistic): top-1 14.9 / 19.9, ROVER 13.9 / 18.3, rerank without LLM 14.1 / 18.7, **with LLM
+12.8 / 17.0**.
+
+### Results on test (scored once)
+
+Pool: the three final-recipe seeds plus seed 0's top-10 beams. Whisper WER, ours in brackets;
+strict = the 798 sentences with no one-word-different copy in the LM text. Every method outputs
+one of the candidates, so no output contains a new word.
+
+| Decoder setting | Method | Voiced | Silent | Strict V / S | Perfect silent sentences |
+| --- | --- | --- | --- | --- | --- |
+| b 3.0, no penalty | seed 0 alone | 11.13% (11.92%) | 19.63% (20.62%) | 11.9 / 20.8 | 25.8% |
+| b 3.0, no penalty | ROVER | 10.23% (10.93%) | 17.98% (18.84%) | 10.9 / 19.1 | 29.1% |
+| b 3.0, no penalty | rerank, no LLM | 10.10% (10.83%) | 17.56% (18.61%) | | 29.1% |
+| b 3.0, no penalty | rerank + LLM | 9.94% (10.65%) | 17.42% (18.33%) | 10.5 / 18.4 | 28.5% |
+| penalty 2.0, b 1.5 | seed 0 alone | 10.28% (10.95%) | 18.21% (19.14%) | 11.0 / 19.3 | 28.9% |
+| penalty 2.0, b 1.5 | ROVER | 9.51% (10.15%) | 16.73% (17.61%) | 10.2 / 17.8 | 32.0% |
+| penalty 2.0, b 1.5 | rerank, no LLM | 9.55% (10.16%) | 16.48% (17.35%) | 10.3 / 17.5 | 31.7% |
+| penalty 2.0, b 1.5 | **rerank + LLM** | **8.48%** (9.08%) | **15.29%** (16.23%) | **9.0 / 16.2** | **35.2%** |
+| penalty 2.0, b 1.5 | rerank + LLM, 2-fold session CV | 8.60% (9.19%) | 15.35% (16.27%) | | 34.8% |
+
+- **New best: 8.5% voiced / 15.3% silent** (strict 9.0 / 16.2), down from ROVER's 10.2 / 18.0.
+  The blank penalty and the reranker add up: the penalty gives better candidates, the LLM picks
+  among them better than voting.
+- The LLM is worth about 1 point on top of consensus selection (silent 16.5 → 15.3, voiced
+  9.6 → 8.5). Without the LLM, selection is about level with ROVER.
+- Tuning on dev and the session cross-validation agree within 0.1 points, so the weights
+  transfer from the dev pool (one strong model, four weak ones) to three equally strong seeds.
+- The gain is the same size on the strict subset (−1.9 voiced, −2.9 silent against ROVER), so it
+  does not come from test sentences with near-copies in the LM text. The memorisation check
+  above found no sign that Qwen has memorised the test sentences.
+- Silent 15.3% is below the old selection ceiling (15.8%: the best of seed 0's top 10 at the old
+  setting), because the pool now holds three seeds and the penalty decodes are better.

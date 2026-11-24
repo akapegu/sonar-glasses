@@ -4,11 +4,12 @@ Reproducing and then improving the SoniSpeech baseline (ResNet-34 + CTC, arXiv 2
 on the public SoniSpeech dataset: eyeglasses with two speakers and two microphones that send
 inaudible FMCW chirps (18–39 kHz) and read lip and jaw movement from the echoes.
 
-**Status (2026-11-22).** The baseline is reproduced to within about 2.5–3 points of the paper
-(greedy decoding, no language model; three seeds agree to 0.1 points). A 4-gram language model
-trained on the transcripts plus leakage-filtered conversational text, and a word-level vote
-over three seeds, take test WER to 10.2% voiced / 18.0% silent.
-An LLM that corrects the candidates from several models gives the best results so far on dev
+**Status (2026-11-25).** The baseline is reproduced to within about 2.5–3 points of the paper
+(greedy decoding, no language model; three seeds agree to 0.1 points). On top of it: a 4-gram
+language model trained on the transcripts plus leakage-filtered conversational text, a blank
+penalty in the decoder, and an LLM that picks one candidate from three seeds' outputs (it
+never rewrites, so it cannot invent words). Together they take test WER to **8.5% voiced /
+15.3% silent**.
 
 ## Headline results (test set, 1,000 sentences per mode)
 
@@ -24,13 +25,18 @@ are in every experiment README.
 | **Ours, final recipe (sessions 1–140), greedy, mean of 3 seeds** | **18.1%** | **29.4%** | [03_final_recipe](experiments/03_final_recipe) |
 | Ours, final recipe + in-domain 4-gram LM | 15.1% | 24.2% | [04_lm_decoding](experiments/04_lm_decoding) |
 | Ours, final recipe + 4-gram LM with external conversational text | 11.1% | 19.6% | [04_lm_decoding](experiments/04_lm_decoding) |
-| **Ours, ROVER vote over 3 seeds (each + external-text LM)** | **10.2%** | **18.0%** | [05_llm_combination](experiments/05_llm_combination) |
+| Ours, ROVER vote over 3 seeds (each + external-text LM) | 10.2% | 18.0% | [05_llm_combination](experiments/05_llm_combination) |
+| Ours, final recipe + external-text LM + blank penalty (mean of 3 seeds) | 10.4% | 18.1% | [04_lm_decoding](experiments/04_lm_decoding) |
+| **Ours, 3 seeds (LM + blank penalty), LLM picks one candidate** | **8.5%** | **15.3%** | [05_llm_combination](experiments/05_llm_combination) |
 | SoniGAN full system (synthetic data, crossCon, 160 sessions, LM, LLM, ensemble) | — | 14.9% | — |
 
 On the strict test subset (798 sentences with no near-copy in the LM's external text) the
-best system reads 10.9% voiced / 19.1% silent. An off-the-shelf Qwen2.5-7B choosing among the
-three seeds' candidates ties ROVER on silent (18.0%) but invents words in about 12% of outputs.
-Seed spread of the greedy result: about 0.1 points.
+best system reads 9.0% voiced / 16.2% silent. Every setting (decoder weights, blank penalty,
+reranker weights) was chosen on dev validation; a 2-fold cross-validation over test sessions
+gives the same result within 0.1 points. Letting the LLM rewrite the candidates instead
+(Qwen2.5-7B) ties voting at 18.0% silent but invents words in about 12% of outputs.
+Seed spread of the greedy result: about 0.1 points. The comparison with the paper is not like
+for like: the paper decodes greedily without an LM.
 
 ## Layout
 
@@ -63,8 +69,8 @@ experiments/
   02_ablations/            40-epoch ablations of unknown settings (crop, masks, normalisation, ...)
   03_final_recipe/         the chosen recipe trained on sessions 1-140, plus extra seeds
   04_lm_decoding/          phase A: n-gram LM beam search, external text, leakage filter
-  05_llm_combination/      phase B: ROVER voting, LLM correction, LoRA fine-tuning
-  06_phoneme_analysis/     phoneme error rate, per-sound recall and confusions on test
+  05_llm_combination/      phase B: ROVER voting, LLM correction and reranking, LoRA fine-tuning
+  06_phoneme_analysis/     phoneme error rate, per-sound recall, confusions, where deletions happen
 data/ cache/ runs/         local data, preprocessing cache and run outputs (gitignored)
 ```
 

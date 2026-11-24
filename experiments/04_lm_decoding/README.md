@@ -114,3 +114,41 @@ support"); 160 of them have 5–9 words. The gain does not come from them:
 
 The gain is also flat across sentence length (−4.0 to −4.6 points for <8, 8–12 and 13+ words).
 For a strict comparison, report the 798-sentence numbers alongside the full test set.
+
+## Blank penalty
+
+Deletions are a third of the remaining silent errors and the decoder rarely inserts words
+(silent with the external LM: S 11.4%, D 7.2%, I 1.0%). `--blank-penalty P` subtracts P from
+the CTC blank's log-probability in every frame before beam search, so the decoder emits a token
+more readily where the model is unsure. This is different from beta (the LM word bonus):
+raising beta alone past 3 made dev validation worse.
+
+```bash
+$V $X/lm_decode.py tune --logprobs /workspace/runs/baseline_vs_dev/logprobs_val_best \
+    --tokenizer /workspace/runs/baseline_vs_dev/tokenizer.model --lm /workspace/lm/dev_ext \
+    --alphas 0.6 0.75 0.9 1.0 --betas 1 1.5 2 2.5 --blank-penalties 0 1 1.5 2
+$V $X/lm_decode.py decode --logprobs /workspace/runs/final_vs_final/logprobs_test_last \
+    --tokenizer /workspace/runs/final_vs_final/tokenizer.model --lm /workspace/lm/final_ext \
+    --alpha 0.75 --beta 1.5 --blank-penalty 2.0
+```
+
+Dev validation (`baseline_vs_dev`, dev external LM; two grids, 88 settings): best **alpha 0.75,
+beta 1.5, penalty 2.0: 14.9% / 19.9%, mean 17.37%**, against 15.5% / 20.5% (mean 17.97%) for
+the previous setting (alpha 0.75, beta 3.0, no penalty). The optimum is a plateau: the seven
+best settings are within 0.2 points (penalty 1–2 with beta 1–2.5). Penalties of 3 and above, or
+combined with beta 4–5, make it worse.
+
+Test, scored once (Whisper, ours in brackets; word-level S / D / I for silent):
+
+| Model | Old setting (b 3.0, no penalty) | **Penalty 2.0, b 1.5** | Silent S / D / I, old → new |
+| --- | --- | --- | --- |
+| final_vs seed 0 | 11.1% (11.9%) / 19.6% (20.6%) | **10.3% (11.0%) / 18.2% (19.1%)** | 11.4 / 7.2 / 1.0 → 11.9 / 4.9 / 1.4 |
+| final_vs seed 1 | 11.1% (11.9%) / 18.8% (19.8%) | 10.5% (11.2%) / 18.2% (19.3%) | 11.5 / 6.0 / 1.3 → 12.2 / 4.3 / 1.7 |
+| final_vs seed 2 | 11.3% (12.1%) / 18.8% (19.8%) | 10.4% (11.1%) / 17.8% (18.8%) | 11.1 / 6.7 / 0.9 → 11.6 / 4.8 / 1.4 |
+| **mean of 3 seeds** | 11.2% / 19.1% | **10.4% / 18.1%** | |
+
+The penalty does what it is meant to: deletions fall by about a third (silent 7.2 → 4.9 for
+seed 0; voiced 3.3 → 2.2) while substitutions and insertions rise by about half a point each.
+Net gain −0.8 voiced and −1.0 silent on the seed mean, larger than on dev validation. A single
+model decoded this way (18.1% silent) matches the previous 3-seed ROVER (18.0%). The phase B
+combinations in [05_llm_combination](../05_llm_combination) use these decodes.

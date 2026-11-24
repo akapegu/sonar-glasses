@@ -6,7 +6,7 @@ All training and decoding ran on RunPod in EU-RO-1, on one network volume shared
 
 - **Network volume** `sonispeech` (60 GB, STANDARD, EU-RO-1), mounted at `/workspace`:
   - `cache/v1` (13 GB): the training cache, crop 226:306
-  - `cache/v2_wide` (24 GB): bins 210:370, for the crop ablations
+  - `cache/audio16k` (1.8 GB): voiced speech at 16 kHz, aligned to the echo frames (step 5b). (`cache/v2_wide`, bins 210:370 for the crop ablations, was deleted on 2026-11-25; rebuild with `preprocess.py --crop 210 370`.)
   - `runs/`: one folder per run, plus `mlruns/` (MLflow)
   - `logs/`, `lm/` (language models + external text), `lisa/` (phase B outputs)
   - `venv/` (training), `venv-decode/` (pyctcdecode + kenlm, numpy < 2), `tools/kenlm/`

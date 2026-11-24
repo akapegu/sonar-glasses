@@ -24,6 +24,8 @@ bash experiments/02_ablations/ablate.sh experiments/01_reproduction/configs/base
 | `c250` | crop bins 250:330 (from the direct path) | 19 | 41.9% | 40.2% | voiced +3.1, stopped |
 | `c240` | crop bins 240:320 | 14 | 45.3% | 44.4% | worse, stopped |
 | `wide160` | crop bins 210:370 (160 bins) | — | — | — | not run |
+| `v500` | SentencePiece with 500 pieces instead of 1,000 | 24 | 41.5% | 38.3% | worse at every check (+2.4 to +3.2), stopped |
+| `final_vs_dev_ref` | the final recipe (aug3 + echoaug together) on the dev split | 39 | **35.1%** | 36.0% | reference for step 5 |
 
 Test (epoch 39, Whisper / ours), for information only:
 
@@ -33,6 +35,13 @@ Test (epoch 39, Whisper / ours), for information only:
 | `aug2` | 25.5% / 26.8% | 37.0% / 38.6% |
 | `aug3` | 25.9% / 27.3% | 37.4% / 38.7% |
 | `rs1222` | 26.5% / 27.9% | 38.9% / 40.3% |
+
+`v500` validation curve (mean WER) against the baseline: epoch 9 56.5 vs 54.6, 14 47.1 vs 44.4,
+19 43.0 vs 40.2, 24 41.5 vs 38.3. Smaller pieces mean more tokens per word for CTC to emit and
+did not help rare words enough to make up for it; 1,000 pieces stay. `final_vs_dev_ref` (run
+with `ablate.sh experiments/03_final_recipe/configs/final_vs.yaml "ref|split=dev"`): voiced
+32.3%, silent 37.8% (Whisper 31.1% / 36.4%), validation loss 1.58. The two augmentations
+together gain 0.9 points at epoch 39, less than either alone suggested (34.8% / 35.0%).
 
 Conclusions: the input pipeline (crop, normalisation, range stride) is not where the gap to the
 paper comes from. More augmentation helps, mostly by reducing memorisation (validation loss

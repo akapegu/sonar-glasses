@@ -1,0 +1,57 @@
+# Step 5b (docs/next_steps_spec.md): the final recipe (ResNet-34, aug3 + echoaug) plus the crossCon
+# loss: InfoNCE between the encoder output at each CTC step and HuBERT features of the voiced audio
+# of the same sentence (silent takes borrow them through DTW). Dev split; compare at epoch 39 with
+# final_vs_dev_ref (35.1%). Targets: experiments/07_transformer_crosscon/make_targets.py.
+run_name: crosscon_vs
+cache: /workspace/cache/v1
+runs_dir: /workspace/runs
+split: dev
+modes: [voiced, silent]
+
+tokenizer:
+  vocab_size: 1000
+
+model:
+  range_stride: 2
+
+train:
+  epochs: 200
+  batch_size: 16
+  lr: 2.0e-4
+  weight_decay: 1.0e-4
+  warmup_frac: 0.05
+  final_lr_frac: 0.01
+  grad_clip: 5.0
+  amp: bf16
+  seed: 0
+  num_workers: 8
+  stats_max_utts: 4000
+  keep_epochs: [39, 99, 149]        # weight snapshots for later comparison
+
+aug:
+  concat_p: 0.5
+  concat_max: 3
+  max_frames: 3000
+  concat_consecutive: true          # echoaug
+  concat_gap_max: 200               # echoaug: up to 1 s still pause between joined utterances
+  scale: 0.05                       # echoaug: amplitude x U(0.95, 1.05)
+  shift_p: 0.5                      # echoaug: random time shift ...
+  shift_max: 400                    # ... inside up to 2 s still padding per side
+  range_masks: 2
+  range_mask_max: 16                # aug3
+  time_masks: 10                    # aug3
+  time_mask_max: 40
+
+crosscon:                         # step 5b: InfoNCE to HuBERT-base layer-9 features (make_targets.py)
+  dir: /workspace/cache/crosscon_h9
+  weight: 1.0
+  temperature: 0.1
+  proj_dim: 256
+  max_pairs: 2048
+
+eval:
+  every: 5
+
+log:
+  backend: mlflow
+  project: sonar-glasses

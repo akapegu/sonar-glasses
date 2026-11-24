@@ -42,10 +42,11 @@ class ResNet34CTC(nn.Module):
             out = torch.div(out + 1, 2, rounding_mode="floor")
         return out
 
-    def forward(self, x: torch.Tensor, lengths=None) -> torch.Tensor:  # lengths unused (convolutions only)
+    def forward(self, x: torch.Tensor, lengths=None, return_hidden=False):  # lengths unused (convolutions only)
         h = self.encoder(x)              # (B, 512, F', T')
         h = h.mean(dim=2).transpose(1, 2)  # (B, T', 512)
-        return F.log_softmax(self.fc(h).float(), dim=-1)  # (B, T', n_classes), fp32 for CTC
+        lp = F.log_softmax(self.fc(h).float(), dim=-1)  # (B, T', n_classes), fp32 for CTC
+        return (lp, h) if return_hidden else lp
 
 
 # ---- step 5a: ResNet-18 front end + Transformer encoder ------------------------------------------
@@ -93,7 +94,7 @@ class ResNetTransformerCTC(nn.Module):
 
     out_lengths = staticmethod(ResNet34CTC.out_lengths)  # same stride layout -> same lengths
 
-    def forward(self, x, lengths=None):
+    def forward(self, x, lengths=None, return_hidden=False):
         h = self.encoder(x).mean(dim=2).transpose(1, 2)  # (B, T', 512)
         h = self.inp(h)
         B, T, _ = h.shape
@@ -107,7 +108,9 @@ class ResNetTransformerCTC(nn.Module):
             mask = (torch.arange(T, device=h.device)[None] < olens[:, None])[:, None, None, :]  # (B,1,1,T) keep
         for blk in self.blocks:
             h = blk(h, cos, sin, mask)
-        return F.log_softmax(self.fc(self.ln(h)).float(), dim=-1)
+        h = self.ln(h)
+        lp = F.log_softmax(self.fc(h).float(), dim=-1)
+        return (lp, h) if return_hidden else lp
 
 
 def build_model(model_cfg, n_classes):
@@ -120,3 +123,30 @@ def build_model(model_cfg, n_classes):
                                     layers=model_cfg.get("layers", 6), heads=model_cfg.get("heads", 8),
                                     ff=model_cfg.get("ff", 1536), dropout=model_cfg.get("dropout", 0.1))
     raise ValueError(f"unknown model.arch {arch}")
+
+
+class CrossConHead(nn.Module):
+    """Step 5b: projections for the crossCon InfoNCE loss between echo-model hidden states and
+    speech features of the same time step (used in training only, not saved in the model)."""
+
+    def __init__(self, echo_dim, speech_dim, proj_dim=256, temperature=0.1):
+        super().__init__()
+        self.pe = nn.Sequential(nn.Linear(echo_dim, proj_dim), nn.GELU(), nn.Linear(proj_dim, proj_dim))
+        self.ps = nn.Sequential(nn.Linear(speech_dim, proj_dim), nn.GELU(), nn.Linear(proj_dim, proj_dim))
+        self.t = temperature
+
+    def forward(self, h, tgt, valid, max_pairs=2048):
+        """h (B, T', E), tgt (B, T', S), valid (B, T') -> symmetric InfoNCE over the valid steps:
+        positive = same step, negatives = every other valid step in the batch."""
+        e, s = h[valid].float(), tgt[valid].float()
+        n = e.shape[0]
+        if n < 2:
+            return h.sum() * 0.0, 0
+        if n > max_pairs:
+            keep = torch.randperm(n, device=e.device)[:max_pairs]
+            e, s, n = e[keep], s[keep], max_pairs
+        ze = F.normalize(self.pe(e), dim=-1)
+        zs = F.normalize(self.ps(s), dim=-1)
+        logits = ze @ zs.T / self.t
+        ar = torch.arange(n, device=e.device)
+        return (F.cross_entropy(logits, ar) + F.cross_entropy(logits.T, ar)) / 2, n

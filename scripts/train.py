@@ -39,7 +39,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from data import (BucketBatchSampler, EchoDataset, collate, compute_stats, load_rows,  # noqa: E402
                   preload, save_json)
 from decode import Tokenizer, greedy_decode, train_tokenizer, wer  # noqa: E402
-from model import ResNet34CTC, build_model  # noqa: E402
+from model import CrossConHead, ResNet34CTC, build_model  # noqa: E402
 from tracking import Tracker  # noqa: E402
 
 
@@ -248,7 +248,21 @@ def main():
     worst = min((math.ceil(r["n_frames"] / 16) - len(tok.encode(r["text"])) for r in train_rows))
     assert worst >= 0, f"an utterance is too short for its transcript under CTC (margin {worst})"
 
-    train_ds = EchoDataset(train_rows, train_arrays, tok, stats, train=not args.overfit, aug=aug)
+    cc = cfg.get("crosscon")  # step 5b: speech-feature targets per output step (make_targets.py)
+    targets = None
+    if cc:
+        def load_target(r):
+            f = Path(cc["dir"]) / r["path"]
+            return np.load(f) if f.exists() else None
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(16) as ex:
+            targets = list(ex.map(load_target, train_rows))
+        n_t = sum(t is not None for t in targets)
+        log(f"crossCon: targets for {n_t}/{len(train_rows)} training utterances "
+            f"(voiced {sum(t is not None for t, r in zip(targets, train_rows) if r['mode'] == 'voiced')}, "
+            f"silent {sum(t is not None for t, r in zip(targets, train_rows) if r['mode'] == 'silent')}), "
+            f"weight {cc.get('weight', 1.0)}, temperature {cc.get('temperature', 0.1)}")
+    train_ds = EchoDataset(train_rows, train_arrays, tok, stats, train=not args.overfit, aug=aug, targets=targets)
     sampler = BucketBatchSampler([r["n_frames"] for r in train_rows], tc["batch_size"], seed=tc["seed"])
     if ddp:
         sampler = ShardedBatches(sampler, rank, world)
@@ -265,8 +279,14 @@ def main():
     # ---- model / optimiser / schedule
     raw_model = build_model(cfg["model"], tok.n_classes).to(device)
     model = raw_model
+    raw_head = head = None
+    if cc:
+        raw_head = CrossConHead(raw_model.fc.in_features, train_ds.target_dim, cc.get("proj_dim", 256),
+                                cc.get("temperature", 0.1)).to(device)
+        head = raw_head
+    params = list(raw_model.parameters()) + (list(raw_head.parameters()) if raw_head else [])
     opt_cls = torch.optim.AdamW if tc.get("optimizer", "adam") == "adamw" else torch.optim.Adam
-    opt = opt_cls(model.parameters(), lr=tc["lr"], weight_decay=tc["weight_decay"])
+    opt = opt_cls(params, lr=tc["lr"], weight_decay=tc["weight_decay"])
     total_steps = tc["epochs"] * len(sampler)
     sched = torch.optim.lr_scheduler.LambdaLR(
         opt, lr_lambda(total_steps, tc["warmup_frac"], tc["final_lr_frac"], tc.get("schedule", "exp")))
@@ -279,6 +299,8 @@ def main():
     if last.exists():
         ck = torch.load(last, map_location=device, weights_only=False)
         raw_model.load_state_dict(ck["model"])
+        if raw_head is not None and "cc_head" in ck:
+            raw_head.load_state_dict(ck["cc_head"])
         opt.load_state_dict(ck["opt"])
         sched.load_state_dict(ck["sched"])
         scaler.load_state_dict(ck["scaler"])
@@ -287,6 +309,9 @@ def main():
     if ddp:  # wraps after loading; DDP broadcasts rank 0's weights to all ranks
         model = torch.nn.parallel.DistributedDataParallel(
             raw_model, device_ids=[device.index] if device.type == "cuda" else None)
+        if raw_head is not None:
+            head = torch.nn.parallel.DistributedDataParallel(
+                raw_head, device_ids=[device.index] if device.type == "cuda" else None)
         # different augmentation randomness per rank (DataLoader workers seed from torch's RNG)
         random.seed(tc["seed"] + rank)
         torch.manual_seed(tc["seed"] + rank)
@@ -313,27 +338,37 @@ def main():
     for epoch in range(start_epoch, tc["epochs"]):
         sampler.set_epoch(epoch)
         t_ep, loss_sum, n_batches, frames = time.time(), 0.0, 0, 0
+        nce_sum = 0.0
         if device.type == "cuda":
             torch.cuda.reset_peak_memory_stats()
-        for x, lens, y, ylens, _, _ in train_dl:
+        for batch in train_dl:
+            x, lens, y, ylens = batch[:4]
             x = x.to(device, non_blocking=True)
             with torch.autocast(device.type, dtype=amp_dtype, enabled=amp_dtype is not None):
-                lp = model(x, lens)
+                if head is not None:
+                    lp, hid = model(x, lens, return_hidden=True)
+                else:
+                    lp = model(x, lens)
             out_lens = ResNet34CTC.out_lengths(lens).to(device)
             local_sum = ctc_sum_per_sample(lp, out_lens, y.to(device), ylens.to(device), device)
             n_global = all_sum(len(lens))[0]
             # DDP averages gradients over ranks, so scale by world / global batch size: the update
             # then equals the single-GPU mean loss over the whole global batch
             loss = local_sum * (world / n_global)
+            if head is not None:  # crossCon InfoNCE (mean over this rank's valid steps)
+                nce, _ = head(hid, batch[6].to(device, non_blocking=True), batch[7].to(device, non_blocking=True),
+                              cc.get("max_pairs", 2048))
+                nce_sum += float(nce.detach())
+                loss = loss + cc.get("weight", 1.0) * nce
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
-            gnorm = torch.nn.utils.clip_grad_norm_(model.parameters(), tc["grad_clip"])
+            gnorm = torch.nn.utils.clip_grad_norm_(params, tc["grad_clip"])
             scaler.step(opt)
             scaler.update()
             sched.step()
             step += 1
-            batch_loss = float(loss.detach()) / world  # this rank's share of the global mean loss
+            batch_loss = (float(loss.detach()) - (cc.get("weight", 1.0) * float(nce.detach()) if head is not None else 0.0)) / world  # CTC part: this rank's share of the global mean loss
             loss_sum += batch_loss
             n_batches += 1
             frames += int(lens.sum())
@@ -346,6 +381,8 @@ def main():
         loss_sum, frames = all_sum(loss_sum, frames)
         metrics = {"epoch": epoch, "train/loss_epoch": loss_sum / max(n_batches, 1), "train/lr": sched.get_last_lr()[0],
                    "time/epoch_s": ep_time, "train/frames_per_s": frames / ep_time}
+        if head is not None:
+            metrics["train/crosscon_epoch"] = all_sum(nce_sum)[0] / world / max(n_batches, 1)
         if device.type == "cuda":
             metrics["gpu/mem_gb"] = torch.cuda.max_memory_allocated() / 1e9
         is_eval = val_dl is not None and ((epoch + 1) % cfg["eval"]["every"] == 0 or epoch + 1 == tc["epochs"]
@@ -366,6 +403,8 @@ def main():
 
         ck = dict(model=raw_model.state_dict(), opt=opt.state_dict(), sched=sched.state_dict(), scaler=scaler.state_dict(),
                   epoch=epoch, step=step, best=best, run_id=tracker.run_id, cfg=cfg, n_classes=tok.n_classes)
+        if raw_head is not None:
+            ck["cc_head"] = raw_head.state_dict()
         if is_eval and metrics["val/wer_mean"] < best:
             best = metrics["val/wer_mean"]
             ck["best"] = best

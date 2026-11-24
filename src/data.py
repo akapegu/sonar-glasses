@@ -13,7 +13,11 @@
     concat_gap_max: still gap of 0..N frames between joined utterances
     scale: multiply the sample by U(1 - scale, 1 + scale)
     shift_p / shift_max: with prob shift_p pad 0..shift_max still frames on each side
+- crossCon targets (step 5b, optional): one speech-feature vector per CTC output step for each
+  training row; the augmentations' concatenation, gaps and shift padding are tracked so each output
+  step of the final sample gets the target of the frame at its centre (none in gaps / padding)
 """
+import math
 import csv
 import json
 import random
@@ -84,8 +88,10 @@ def compute_stats(arrays, max_utts: int = 4000, seed: int = 0):
 
 
 class EchoDataset(Dataset):
-    def __init__(self, rows, arrays, tokenizer, stats, train: bool, aug: dict):
+    def __init__(self, rows, arrays, tokenizer, stats, train: bool, aug: dict, targets=None):
         self.rows, self.arrays, self.tok, self.train, self.aug = rows, arrays, tokenizer, train, aug
+        self.targets = targets  # None, or a list aligned with rows of (T', D) arrays / None
+        self.target_dim = next((t.shape[1] for t in targets if t is not None), 0) if targets else 0
         self.mean = np.asarray(stats["mean"], np.float32)[:, None, None]
         self.std = np.asarray(stats["std"], np.float32)[:, None, None]
 
@@ -122,24 +128,48 @@ class EchoDataset(Dataset):
     def _join(self, ids):
         """Concatenate along time; with concat_gap_max > 0 insert a still (all-zero) gap of
         0..concat_gap_max frames between utterances, like the zero-masked pauses in the recordings."""
-        parts = [self.arrays[ids[0]]]
+        parts, gaps = [self.arrays[ids[0]]], []
         for j in ids[1:]:
             g = random.randint(0, self.aug.get("concat_gap_max", 0))
+            gaps.append(g)
             if g:
                 parts.append(np.zeros((*parts[0].shape[:2], g), parts[0].dtype))
             parts.append(self.arrays[j])
-        return np.concatenate(parts, axis=2).astype(np.float32)
+        return np.concatenate(parts, axis=2).astype(np.float32), gaps
 
     def _shift_pad(self, x):
         """EchoSpeech 5.5.3: place the sample at a random time offset inside still padding
         (0..shift_max frames on each side), counted in the input length so the model learns blank there."""
         a = self.aug
         if random.random() >= a.get("shift_p", 0.0):
-            return x
+            return x, 0
         room = max(0, a.get("max_frames", 3000) - x.shape[2])
         left = random.randint(0, min(a.get("shift_max", 0), room))
         right = random.randint(0, min(a.get("shift_max", 0), room - left))
-        return np.pad(x, ((0, 0), (0, 0), (left, right)))
+        return np.pad(x, ((0, 0), (0, 0), (left, right))), left
+
+    def _target_track(self, ids, gaps, left, n_t):
+        """(T', D) targets and a (T',) validity mask for a sample of n_t frames built from ids."""
+        n_out = math.ceil(n_t / 16)
+        tgt = np.zeros((n_out, self.target_dim), np.float16)
+        valid = np.zeros(n_out, bool)
+        starts, pos = [], left
+        for k, j in enumerate(ids):
+            if k:
+                pos += gaps[k - 1]
+            starts.append(pos)
+            pos += self.rows[j]["n_frames"]
+        for t in range(n_out):
+            f = 16 * t + 8
+            for k, j in enumerate(ids):
+                lf = f - starts[k]
+                if 0 <= lf < self.rows[j]["n_frames"]:
+                    tg = self.targets[j]
+                    if tg is not None:
+                        tgt[t] = tg[min(lf // 16, len(tg) - 1)]
+                        valid[t] = True
+                    break
+        return torch.from_numpy(tgt), torch.from_numpy(valid)
 
     def _specaug(self, x):
         a = self.aug
@@ -158,28 +188,45 @@ class EchoDataset(Dataset):
 
     def __getitem__(self, i):
         ids = self._concat_ids(i)
-        x = self._join(ids) if self.train else np.concatenate([self.arrays[j] for j in ids], axis=2).astype(np.float32)
+        gaps, left = [0] * (len(ids) - 1), 0
+        if self.train:
+            x, gaps = self._join(ids)
+        else:
+            x = np.concatenate([self.arrays[j] for j in ids], axis=2).astype(np.float32)
         if self.train:
             s = self.aug.get("scale", 0.0)  # EchoSpeech 5.5.2: multiply by U(1 - s, 1 + s)
             if s:
                 x *= random.uniform(1 - s, 1 + s)
-            x = self._shift_pad(x)  # still padding is raw 0 (no motion), normalised like the rest
+            x, left = self._shift_pad(x)  # still padding is raw 0 (no motion), normalised like the rest
         x = (x - self.mean) / self.std
         if self.train:
             x = self._specaug(x)
         text = " ".join(self.rows[j]["text"] for j in ids)
         y = self.tok.encode(text)
-        return torch.from_numpy(x), torch.tensor(y, dtype=torch.long), text, self.rows[i]["mode"]
+        item = (torch.from_numpy(x), torch.tensor(y, dtype=torch.long), text, self.rows[i]["mode"])
+        if self.targets is not None:
+            item += (self._target_track(ids, gaps, left, x.shape[2]),)
+        return item
 
 
 def collate(batch):
-    xs, ys, texts, modes = zip(*batch)
+    """-> x, lengths, targets, target_lengths, texts, modes [, crossCon targets (B, T', D), valid (B, T')]"""
+    xs, ys, texts, modes = zip(*[b[:4] for b in batch])
     lengths = torch.tensor([x.shape[2] for x in xs], dtype=torch.long)
     out = torch.zeros(len(xs), xs[0].shape[0], xs[0].shape[1], int(lengths.max()))
     for b, x in enumerate(xs):
         out[b, :, :, : x.shape[2]] = x
     targets = torch.cat(ys)
     target_lengths = torch.tensor([len(y) for y in ys], dtype=torch.long)
+    if len(batch[0]) == 5:
+        tr = [b[4] for b in batch]
+        n_out = max(t.shape[0] for t, _ in tr)
+        tgt = torch.zeros(len(tr), n_out, tr[0][0].shape[1], dtype=torch.float16)
+        valid = torch.zeros(len(tr), n_out, dtype=torch.bool)
+        for b, (t, v) in enumerate(tr):
+            tgt[b, : t.shape[0]] = t
+            valid[b, : v.shape[0]] = v
+        return out, lengths, targets, target_lengths, list(texts), list(modes), tgt, valid
     return out, lengths, targets, target_lengths, list(texts), list(modes)
 
 

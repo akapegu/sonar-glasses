@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 from data import BucketBatchSampler, EchoDataset, collate, load_rows, preload  # noqa: E402
 from decode import Tokenizer, greedy_decode  # noqa: E402
-from model import ResNet34CTC  # noqa: E402
+from model import ResNet34CTC, build_model  # noqa: E402
 
 
 def main():
@@ -54,7 +54,7 @@ def main():
     sampler = BucketBatchSampler([r["n_frames"] for r in rows], args.batch_size, shuffle=False)
     dl = torch.utils.data.DataLoader(ds, collate_fn=collate, num_workers=4, batch_sampler=sampler)
     ck = torch.load(ck_path, map_location=device, weights_only=False)
-    model = ResNet34CTC(n_classes=ck["n_classes"], range_stride=cfg["model"]["range_stride"]).to(device)
+    model = build_model(cfg["model"], ck["n_classes"]).to(device)
     model.load_state_dict(ck["model"])
     model.eval()
 
@@ -63,7 +63,7 @@ def main():
     with torch.no_grad():
         for x, lens, _, _, _, _ in dl:
             with torch.autocast(device.type, dtype=amp, enabled=amp is not None):
-                lp = model(x.to(device))
+                lp = model(x.to(device), lens)
             olens = ResNet34CTC.out_lengths(lens)
             greedy = greedy_decode(lp, olens, tok)
             lp = lp.float().cpu().numpy()

@@ -28,7 +28,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from common import norm_text  # noqa: E402
 from data import BucketBatchSampler, EchoDataset, collate, load_rows, preload  # noqa: E402
 from decode import Tokenizer, greedy_decode, wer  # noqa: E402
-from model import ResNet34CTC  # noqa: E402
+from model import ResNet34CTC, build_model  # noqa: E402
 
 try:
     from whisper_normalizers import EnglishTextNormalizer  # noqa: E402
@@ -65,7 +65,7 @@ def main():
                                      batch_sampler=BucketBatchSampler([r["n_frames"] for r in rows],
                                                                       args.batch_size, shuffle=False))
     ck = torch.load(ck_path, map_location=device, weights_only=False)
-    model = ResNet34CTC(n_classes=ck["n_classes"], range_stride=cfg["model"]["range_stride"]).to(device)
+    model = build_model(cfg["model"], ck["n_classes"]).to(device)
     model.load_state_dict(ck["model"])
     model.eval()
 
@@ -74,7 +74,7 @@ def main():
     with torch.no_grad():
         for x, lens, _, _, _, _ in dl:
             with torch.autocast(device.type, dtype=amp, enabled=amp is not None):
-                lp = model(x.to(device))
+                lp = model(x.to(device), lens)
             hyps += greedy_decode(lp, ResNet34CTC.out_lengths(lens), tok)
 
     out_rows, by_mode = [], {}

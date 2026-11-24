@@ -39,7 +39,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from data import (BucketBatchSampler, EchoDataset, collate, compute_stats, load_rows,  # noqa: E402
                   preload, save_json)
 from decode import Tokenizer, greedy_decode, train_tokenizer, wer  # noqa: E402
-from model import ResNet34CTC  # noqa: E402
+from model import ResNet34CTC, build_model  # noqa: E402
 from tracking import Tracker  # noqa: E402
 
 
@@ -74,13 +74,15 @@ def pick_device():
     return torch.device("cpu")
 
 
-def lr_lambda(total_steps, warmup_frac, final_frac):
+def lr_lambda(total_steps, warmup_frac, final_frac, kind="exp"):
     warm = max(1, int(total_steps * warmup_frac))
 
     def f(step):
         if step < warm:
             return (step + 1) / warm
         progress = min(1.0, (step - warm) / max(1, total_steps - warm))
+        if kind == "cosine":  # cosine from 1 to final_frac
+            return final_frac + (1 - final_frac) * 0.5 * (1 + math.cos(math.pi * progress))
         return final_frac ** progress  # exponential decay from 1 to final_frac
     return f
 
@@ -127,7 +129,7 @@ def evaluate(model, loader, tok, ctc, device, amp_dtype):
     for x, lens, y, ylens, texts, modes in loader:
         x = x.to(device, non_blocking=True)
         with torch.autocast(device.type, dtype=amp_dtype, enabled=amp_dtype is not None):
-            lp = model(x)
+            lp = model(x, lens)
         out_lens = ResNet34CTC.out_lengths(lens).to(device)
         loss = ctc_loss_fn(lp, out_lens, y.to(device), ylens.to(device), ctc, device)
         losses += float(loss) * len(texts)
@@ -261,11 +263,13 @@ def main():
             collate_fn=collate, num_workers=min(nw, 4), pin_memory=device.type == "cuda")
 
     # ---- model / optimiser / schedule
-    raw_model = ResNet34CTC(n_classes=tok.n_classes, range_stride=cfg["model"]["range_stride"]).to(device)
+    raw_model = build_model(cfg["model"], tok.n_classes).to(device)
     model = raw_model
-    opt = torch.optim.Adam(model.parameters(), lr=tc["lr"], weight_decay=tc["weight_decay"])
+    opt_cls = torch.optim.AdamW if tc.get("optimizer", "adam") == "adamw" else torch.optim.Adam
+    opt = opt_cls(model.parameters(), lr=tc["lr"], weight_decay=tc["weight_decay"])
     total_steps = tc["epochs"] * len(sampler)
-    sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda(total_steps, tc["warmup_frac"], tc["final_lr_frac"]))
+    sched = torch.optim.lr_scheduler.LambdaLR(
+        opt, lr_lambda(total_steps, tc["warmup_frac"], tc["final_lr_frac"], tc.get("schedule", "exp")))
     scaler = torch.amp.GradScaler("cuda", enabled=amp_dtype == torch.float16)
     ctc = nn.CTCLoss(blank=0, zero_infinity=True)
     n_params = sum(p.numel() for p in model.parameters())
@@ -314,7 +318,7 @@ def main():
         for x, lens, y, ylens, _, _ in train_dl:
             x = x.to(device, non_blocking=True)
             with torch.autocast(device.type, dtype=amp_dtype, enabled=amp_dtype is not None):
-                lp = model(x)
+                lp = model(x, lens)
             out_lens = ResNet34CTC.out_lengths(lens).to(device)
             local_sum = ctc_sum_per_sample(lp, out_lens, y.to(device), ylens.to(device), device)
             n_global = all_sum(len(lens))[0]

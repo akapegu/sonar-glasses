@@ -1,0 +1,57 @@
+# Step 5a (docs/next_steps_spec.md): ResNet-18 + Transformer encoder, CTC, with the final recipe's
+# data and augmentations (aug3 + echoaug). AdamW 3e-4, weight decay 0.01, cosine schedule with warm-up.
+# Dev split (train 1-131, validate 132-140); compare at epoch 39 with the final recipe on dev
+# (experiments/02_ablations/ablate.sh ... "ref|split=dev").
+run_name: r18tf_vs
+cache: /workspace/cache/v1
+runs_dir: /workspace/runs
+split: dev
+modes: [voiced, silent]
+
+tokenizer:
+  vocab_size: 1000
+
+model:
+  arch: resnet18_transformer      # step 5a: ResNet-18 front end + 6-layer rotary Transformer
+  d_model: 384
+  layers: 6
+  heads: 8
+  ff: 1536
+  dropout: 0.1
+
+train:
+  epochs: 200
+  batch_size: 16
+  optimizer: adamw
+  schedule: cosine
+  lr: 3.0e-4
+  weight_decay: 0.01
+  warmup_frac: 0.05
+  final_lr_frac: 0.01
+  grad_clip: 5.0
+  amp: bf16
+  seed: 0
+  num_workers: 8
+  stats_max_utts: 4000
+  keep_epochs: [39, 99, 149]        # weight snapshots for later comparison
+
+aug:
+  concat_p: 0.5
+  concat_max: 3
+  max_frames: 3000
+  concat_consecutive: true          # echoaug
+  concat_gap_max: 200               # echoaug: up to 1 s still pause between joined utterances
+  scale: 0.05                       # echoaug: amplitude x U(0.95, 1.05)
+  shift_p: 0.5                      # echoaug: random time shift ...
+  shift_max: 400                    # ... inside up to 2 s still padding per side
+  range_masks: 2
+  range_mask_max: 16                # aug3
+  time_masks: 10                    # aug3
+  time_mask_max: 40
+
+eval:
+  every: 5
+
+log:
+  backend: mlflow
+  project: sonar-glasses

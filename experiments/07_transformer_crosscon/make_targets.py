@@ -37,6 +37,10 @@ def hubert_targets(rows, audio_dir, out, layer, device):
     model = HubertModel.from_pretrained("facebook/hubert-base-ls960").to(device).eval()
     feats = {}
     for i, r in enumerate(rows):
+        dst = Path(out) / r["path"]
+        if dst.exists():  # resumable
+            feats[r["path"]] = np.load(dst)
+            continue
         y = torch.from_numpy(np.load(Path(audio_dir) / r["path"]).astype(np.float32))[None].to(device)
         y = (y - y.mean()) / (y.std() + 1e-7)  # HuBERT expects zero-mean unit-variance input
         with torch.no_grad():
@@ -47,7 +51,6 @@ def hubert_targets(rows, audio_dir, out, layer, device):
             h = torch.cat([h, h[-1:].expand(4 * T - h.shape[0], -1)])
         f = h.view(T, 4, -1).mean(1).cpu().numpy().astype(np.float16)
         feats[r["path"]] = f
-        dst = Path(out) / r["path"]
         dst.parent.mkdir(parents=True, exist_ok=True)
         np.save(dst, f)
         if (i + 1) % 1000 == 0:
@@ -60,8 +63,8 @@ def encoder_features(run, cache, rows, device):
     import yaml
     from data import load_rows  # noqa: F401  (keeps the import path consistent with the scripts)
     from model import build_model
-    cfg = yaml.safe_load(open(Path(run) / "config.yaml"))
     ck = torch.load(Path(run) / "best.pt", map_location=device, weights_only=False)
+    cfg = ck.get("cfg") or yaml.safe_load(open(Path(run) / "config.yaml"))["cfg"]
     model = build_model(cfg["model"], ck["n_classes"]).to(device).eval()
     model.load_state_dict(ck["model"])
     import json

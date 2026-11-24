@@ -21,13 +21,17 @@ stamp() { date -u +"%Y-%m-%d %H:%M:%S UTC"; }
 
 git pull -q || echo "[$(stamp)] git pull failed; using the checked-out commit"
 echo "[$(stamp)] ablation queue at commit $(git rev-parse --short HEAD): $*"
+export PYTHONUNBUFFERED=1
+NGPU=$(nvidia-smi -L 2>/dev/null | wc -l)
+if [ "$NGPU" -gt 1 ]; then TRAIN="$PY -m torch.distributed.run --standalone --nproc_per_node=$NGPU"; else TRAIN=$PY; fi
+echo "[$(stamp)] training on $NGPU GPU(s)"
 TAGS=()
 for item in "$@"; do
   tag=${item%%|*}; overrides=${item#*|}
   TAGS+=("$tag")
   echo "[$(stamp)] === $tag: $overrides (stop after $STOP_AFTER)"
   # shellcheck disable=SC2086
-  if $PY -u scripts/train.py --config "$CONFIG" --tag "$tag" --set train.stop_after="$STOP_AFTER" $overrides; then
+  if $TRAIN scripts/train.py --config "$CONFIG" --tag "$tag" --set train.stop_after="$STOP_AFTER" $overrides; then
     run=$($PY -c "import yaml,sys; c=yaml.safe_load(open(sys.argv[1])); print(f\"{c['runs_dir']}/{c['run_name']}_dev_$tag\")" "$CONFIG")
     # test scores are for information only: settings are chosen on validation
     for split in val test; do

@@ -11,6 +11,10 @@ beams of the first (strongest) model, de-duplicated in that order.
   # B5: LoRA fine-tune on validation sessions 132-138, early-stop on 139-140, then apply
   python experiments/05_llm_combination/combine.py finetune --decodes ... --model ... --adapter-out /workspace/lisa/adapter
   python experiments/05_llm_combination/combine.py llm --decodes ... --model ... --adapter /workspace/lisa/adapter --out lisa_test
+  # Selection only (no rewriting): rerank the candidates with LLM log-probability + agreement +
+  # decoder score + word bonus; weights tuned on one set (dev val), then frozen for another (test)
+  python experiments/05_llm_combination/combine.py rerank --decodes ... --model ... --out rerank_val
+  python experiments/05_llm_combination/combine.py rerank --decodes ... --model ... --weights rerank_val_weights.json --out rerank_test
 
 --decodes are the *_decode_*.csv files from lm_decode.py decode (same utterance keys in each).
 Every command writes <out>.csv (key, mode, ref, hyp) and <out>.json (metrics by mode, from
@@ -41,10 +45,11 @@ def load_pool(paths, nbest=10):
     for k in keys:
         first = pools[0][k]
         tops = [p[k]["hyp"] for p in pools]
-        beams = [b[0] for b in json.loads(first["nbest"])[:nbest]]
+        nb = json.loads(first["nbest"])[:nbest]
+        beams = [b[0] for b in nb]
         cands = list(dict.fromkeys([c for c in tops + beams if c.strip()]))
         utts.append(dict(key=k, mode=first["mode"], ref=first["ref"], tops=tops, cands=cands,
-                         session=int(k.split("/")[1])))
+                         beam_scores={b[0]: float(b[1]) for b in nb}, session=int(k.split("/")[1])))
     return utts
 
 
@@ -238,10 +243,149 @@ def cmd_finetune(a):
             print(f"  saved adapter (best held-out mean {best:.2%})", flush=True)
 
 
+# ---- selection-only reranking -----------------------------------------------------------------
+RERANK_PREFIX = "The following is a line from a casual English conversation.\n"
+
+
+def word_distance(a, b):
+    return sum(x != y for x, y in align(a.split(), b.split()))
+
+
+def llm_logprobs(tok, model, texts, batch=64):
+    """Sum of log P(token) of each text (plus a closing newline) after a fixed prefix."""
+    import torch
+    pre = tok(RERANK_PREFIX)["input_ids"]
+    seqs = [pre + tok(t + "\n")["input_ids"] for t in texts]
+    order = sorted(range(len(seqs)), key=lambda i: len(seqs[i]))
+    out = [0.0] * len(seqs)
+    for s in range(0, len(order), batch):
+        idx = order[s:s + batch]
+        L = max(len(seqs[i]) for i in idx)
+        ids = torch.full((len(idx), L), tok.pad_token_id or 0, dtype=torch.long)
+        mask = torch.zeros((len(idx), L), dtype=torch.long)
+        for r, i in enumerate(idx):
+            ids[r, :len(seqs[i])] = torch.tensor(seqs[i])
+            mask[r, :len(seqs[i])] = 1
+        ids, mask = ids.to(model.device), mask.to(model.device)
+        with torch.no_grad():
+            logits = model(input_ids=ids, attention_mask=mask).logits[:, :-1].float()
+        lp = torch.log_softmax(logits, -1).gather(-1, ids[:, 1:, None])[..., 0]
+        keep = mask[:, 1:].clone()
+        keep[:, :len(pre) - 1] = 0  # score only the text, not the prefix
+        tot = (lp * keep).sum(1).tolist()
+        for r, i in enumerate(idx):
+            out[i] = tot[r]
+        if (s // batch) % 20 == 0:
+            print(f"  scored {min(s + batch, len(order))}/{len(order)}", flush=True)
+    return out
+
+
+def rerank_features(utts, tok, model):
+    import jiwer
+    from metrics import wnorm
+    flat = [c for u in utts for c in u["cands"]]
+    lps = llm_logprobs(tok, model, flat)
+    k = 0
+    for u in utts:
+        n = len(u["cands"])
+        fill = min(u["beam_scores"].values()) if u["beam_scores"] else 0.0
+        R = wnorm(u["ref"])
+        u["feat"] = [dict(llm=lps[k + j], agree=-sum(word_distance(c, t) for t in u["tops"]) / len(u["tops"]),
+                          dec=u["beam_scores"].get(c, fill), nw=len(c.split()),
+                          err=jiwer.process_words(R, wnorm(c)).wer * len(R.split()))
+                     for j, c in enumerate(u["cands"])]
+        u["ref_len"] = len(R.split())
+        k += n
+
+
+FEATS = ("llm", "agree", "dec", "nw")
+
+
+def rerank_arrays(utts):
+    import numpy as np
+    C = max(len(u["cands"]) for u in utts)
+    F = np.zeros((len(utts), C, len(FEATS)))
+    E = np.zeros((len(utts), C))
+    valid = np.zeros((len(utts), C), bool)
+    for i, u in enumerate(utts):
+        for j, f in enumerate(u["feat"]):
+            F[i, j] = [f[k] for k in FEATS]
+            E[i, j] = f["err"]
+            valid[i, j] = True
+    modes = np.array([u["mode"] for u in utts])
+    ref_len = np.array([u["ref_len"] for u in utts], float)
+    return F, E, valid, modes, ref_len
+
+
+def rerank_pick(arrs, w):
+    import numpy as np
+    F, _, valid, _, _ = arrs
+    score = F @ np.array([w[k] for k in FEATS], float)
+    return np.where(valid, score, -np.inf).argmax(1)
+
+
+def rerank_wer(arrs, picks):
+    import numpy as np
+    _, E, _, modes, ref_len = arrs
+    err = E[np.arange(len(picks)), picks]
+    return float(np.mean([err[modes == m].sum() / ref_len[modes == m].sum() for m in ("voiced", "silent")]))
+
+
+def cmd_rerank(a):
+    import itertools
+    utts = load_pool(a.decodes)
+    feats = Path(f"{a.out}_features.json")
+    if feats.exists():
+        saved = json.load(open(feats))
+        for u in utts:
+            u["feat"], u["ref_len"] = saved[u["key"]]
+    else:
+        tok, model = load_llm(a.model)
+        rerank_features(utts, tok, model)
+        json.dump({u["key"]: [u["feat"], u["ref_len"]] for u in utts}, open(feats, "w"))
+    arrs = rerank_arrays(utts)
+    grid = dict(llm=[0, 0.1, 0.2, 0.35, 0.5, 0.75, 1.0], agree=[0, 0.5, 1, 2, 4, 8, 16, 32, 64],
+                dec=[0, 0.1, 0.25, 0.5, 1.0], nw=[-1, 0, 1, 2, 3, 4, 6])
+
+    def tune(rows):
+        import numpy as np
+        sub = tuple(x[rows] for x in arrs)
+        log = []
+        for vals in itertools.product(*grid.values()):
+            w = dict(zip(grid, vals))
+            log.append((rerank_wer(sub, rerank_pick(sub, w)), w))
+        return {"with_llm": min(log, key=lambda x: x[0])[1],
+                "no_llm": min((x for x in log if x[1]["llm"] == 0), key=lambda x: x[0])[1]}
+
+    import numpy as np
+    if a.weights:
+        weights = json.load(open(a.weights))
+    else:  # tune on this set; the no-LLM optimum shows what the LLM adds
+        weights = tune(np.arange(len(utts)))
+        json.dump(weights, open(f"{a.out}_weights.json", "w"), indent=1)
+        print(f"tuned weights: {weights}", flush=True)
+    if a.cv_folds:  # tune on some sessions, apply to the others (sentence sets are disjoint by session)
+        sessions = sorted({u["session"] for u in utts})
+        fold_of = {s_: i % a.cv_folds for i, s_ in enumerate(sessions)}
+        folds = np.array([fold_of[u["session"]] for u in utts])
+        for name in ("with_llm", "no_llm"):
+            picks = np.zeros(len(utts), int)
+            for f in range(a.cv_folds):
+                w = tune(np.where(folds != f)[0])[name]
+                picks[folds == f] = rerank_pick(arrs, w)[folds == f]
+                print(f"  cv fold {f} {name}: {w}", flush=True)
+            evaluate(utts, [u["cands"][p] for u, p in zip(utts, picks)], f"{a.out}_cv_{name}")
+    evaluate(utts, [u["tops"][0] for u in utts], a.out + "_top1")
+    evaluate(utts, [rover(u["tops"]) for u in utts], a.out + "_rover")
+    for name, w in weights.items():
+        picks = rerank_pick(arrs, w)
+        evaluate(utts, [u["cands"][p] for u, p in zip(utts, picks)], f"{a.out}_{name}", extra=dict(weights=w))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("rover", "llm", "finetune"):
+    for name in ("rover", "llm", "finetune", "rerank"):
         p = sub.add_parser(name)
         p.add_argument("--decodes", nargs="+", required=True, help="first = strongest model")
     sub.choices["rover"].add_argument("--out", required=True)
@@ -260,8 +404,13 @@ def main():
     p.add_argument("--epochs", type=int, default=4)
     p.add_argument("--batch", type=int, default=8, help="effective batch (gradient accumulation)")
     p.add_argument("--micro", type=int, default=4, help="micro-batch per forward pass")
+    p = sub.choices["rerank"]
+    p.add_argument("--model", required=True)
+    p.add_argument("--weights", help="weights JSON from a tuning run (omit to tune on this set)")
+    p.add_argument("--cv-folds", type=int, default=0, help="also report session-wise cross-validation")
+    p.add_argument("--out", required=True)
     a = ap.parse_args()
-    {"rover": cmd_rover, "llm": cmd_llm, "finetune": cmd_finetune}[a.cmd](a)
+    {"rover": cmd_rover, "llm": cmd_llm, "finetune": cmd_finetune, "rerank": cmd_rerank}[a.cmd](a)
 
 
 if __name__ == "__main__":

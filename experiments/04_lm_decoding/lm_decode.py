@@ -101,14 +101,17 @@ def _init(labels, lm_dir, alpha, beta):
 
 
 def _decode(args):
-    lp, beam, nbest = args
+    lp, beam, nbest, bp = args
+    if bp:  # blank penalty: lower the CTC blank's log-probability (column 0) so fewer tokens are dropped
+        lp = lp.copy()
+        lp[:, 0] -= bp
     beams = _DEC.decode_beams(lp, beam_width=beam)
     return beams[0][0], [(b[0], float(b[-1])) for b in beams[:nbest]]
 
 
-def run_decoder(lps, labels, lm_dir, alpha, beta, beam, nbest=1, procs=24):
+def run_decoder(lps, labels, lm_dir, alpha, beta, beam, nbest=1, procs=24, bp=0.0):
     with Pool(procs, initializer=_init, initargs=(labels, lm_dir, alpha, beta)) as pool:
-        res = pool.map(_decode, [(lp, beam, nbest) for lp in lps], chunksize=8)
+        res = pool.map(_decode, [(lp, beam, nbest, bp) for lp in lps], chunksize=8)
     return [r[0] for r in res], [r[1] for r in res]
 
 
@@ -137,28 +140,34 @@ def cmd_tune(a):
     log = []
     greedy = by_mode(meta, [m["greedy"] for m in meta])
     print(f"greedy                     {fmt(greedy)}", flush=True)
-    for alpha, beta in itertools.product(a.alphas, a.betas):
-        hyps, _ = run_decoder(lps, labels, a.lm, alpha, beta, a.beam, procs=a.procs)
+    for alpha, beta, bp in itertools.product(a.alphas, a.betas, a.blank_penalties):
+        hyps, _ = run_decoder(lps, labels, a.lm, alpha, beta, a.beam, procs=a.procs, bp=bp)
         r = by_mode(meta, hyps)
         mean = (r["voiced"]["wer_whisper"] + r["silent"]["wer_whisper"]) / 2
-        log.append(dict(alpha=alpha, beta=beta, beam=a.beam, mean=mean, **{m: r[m] for m in r}))
-        print(f"alpha {alpha:4.2f} beta {beta:4.2f}  {fmt(r)}  mean {mean:.2%}", flush=True)
+        log.append(dict(alpha=alpha, beta=beta, blank_penalty=bp, beam=a.beam, mean=mean, **{m: r[m] for m in r}))
+        print(f"alpha {alpha:4.2f} beta {beta:4.2f} blank {bp:4.2f}  {fmt(r)}  mean {mean:.2%}", flush=True)
     best = min(log, key=lambda x: x["mean"])
-    print(f"best: alpha {best['alpha']} beta {best['beta']} (mean Whisper WER {best['mean']:.2%})", flush=True)
-    json.dump(dict(greedy=greedy, grid=log, best=best), open(f"{a.logprobs}_tune_{Path(a.lm).name}.json", "w"), indent=1)
+    print(f"best: alpha {best['alpha']} beta {best['beta']} blank {best['blank_penalty']} "
+          f"(mean Whisper WER {best['mean']:.2%})", flush=True)
+    suffix = "_bp" if a.blank_penalties != [0.0] else ""
+    json.dump(dict(greedy=greedy, grid=log, best=best),
+              open(f"{a.logprobs}_tune_{Path(a.lm).name}{suffix}.json", "w"), indent=1)
 
 
 def cmd_decode(a):
     lps, meta = load(a.logprobs)
     labels = labels_from_tokenizer(a.tokenizer)
     oov = oov_words(a.cache, a.oov_ref_split, meta)
-    hyps, nb = run_decoder(lps, labels, a.lm, a.alpha, a.beta, a.beam, nbest=a.nbest, procs=a.procs)
+    hyps, nb = run_decoder(lps, labels, a.lm, a.alpha, a.beta, a.beam, nbest=a.nbest, procs=a.procs,
+                           bp=a.blank_penalty)
     greedy = by_mode(meta, [m["greedy"] for m in meta], oov)
     r = by_mode(meta, hyps, oov)
     print(f"{len(oov)} OOV word types")
     print(f"greedy  {fmt(greedy)}  OOV recall V {greedy['voiced']['oov_recall']:.1%} S {greedy['silent']['oov_recall']:.1%}")
     print(f"beam+LM {fmt(r)}  OOV recall V {r['voiced']['oov_recall']:.1%} S {r['silent']['oov_recall']:.1%}")
     tag = f"{Path(a.lm).name if a.lm else 'nolm'}_a{a.alpha}_b{a.beta}_w{a.beam}"
+    if a.blank_penalty:
+        tag += f"_bp{a.blank_penalty}"
     json.dump(dict(settings=vars(a), oov_types=len(oov), greedy=greedy, beam=r),
               open(f"{a.logprobs}_decode_{tag}.json", "w"), indent=1)
     with open(f"{a.logprobs}_decode_{tag}.csv", "w", newline="") as fh:
@@ -189,10 +198,13 @@ def main():
         p.add_argument("--procs", type=int, default=24)
     sub.choices["tune"].add_argument("--alphas", type=float, nargs="+", default=[0.2, 0.35, 0.5, 0.75, 1.0, 1.5])
     sub.choices["tune"].add_argument("--betas", type=float, nargs="+", default=[0.0, 0.5, 1.0, 2.0, 3.0])
+    sub.choices["tune"].add_argument("--blank-penalties", type=float, nargs="+", default=[0.0],
+                                     help="subtracted from the blank log-probability before decoding")
     d = sub.choices["decode"]
     d.add_argument("--alpha", type=float, default=0.5)
     d.add_argument("--beta", type=float, default=1.0)
     d.add_argument("--nbest", type=int, default=10)
+    d.add_argument("--blank-penalty", type=float, default=0.0)
     d.add_argument("--cache", default="/workspace/cache/v1")
     d.add_argument("--oov-ref-split", default="final", choices=["dev", "final"])
     a = ap.parse_args()

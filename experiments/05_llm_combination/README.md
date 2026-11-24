@@ -150,3 +150,27 @@ one of the candidates, so no output contains a new word.
   above found no sign that Qwen has memorised the test sentences.
 - Silent 15.3% is below the old selection ceiling (15.8%: the best of seed 0's top 10 at the old
   setting), because the pool now holds three seeds and the penalty decodes are better.
+
+### How small can the reranking LLM be?
+
+Same pipeline with smaller Qwen2.5 Instruct models (blank-penalty decodes, 3 seeds; weights
+re-tuned on dev validation for each model, then frozen; `--model /root/models/Qwen2.5-<size>-Instruct`).
+Test, Whisper WER (ours in brackets):
+
+| Reranker LLM | Voiced | Silent | Strict V / S | 2-fold session CV (V / S) | Share of the 7B gain kept (V / S) |
+| --- | --- | --- | --- | --- | --- |
+| none (consensus selection only) | 9.55% (10.16%) | 16.48% (17.35%) | 10.3 / 17.5 | 9.51 / 16.53 | — |
+| Qwen2.5-0.5B | 8.75% (9.33%) | 15.62% (16.50%) | 9.3 / 16.6 | 8.90 / 15.65 | 75% / 72% |
+| Qwen2.5-1.5B | 8.70% (9.32%) | 15.43% (16.36%) | 9.3 / 16.4 | 8.79 / 15.48 | 79% / 88% |
+| **Qwen2.5-3B** | **8.52%** (9.12%) | **15.41%** (16.31%) | **9.1 / 16.4** | 8.67 / 15.48 | **96% / 90%** |
+| Qwen2.5-7B | 8.48% (9.08%) | 15.29% (16.23%) | 9.0 / 16.2 | 8.60 / 15.35 | 100% |
+
+- **A 3B model keeps 90–96% of the 7B's gain; even 0.5B keeps about three quarters.** The
+  differences between 1.5B, 3B and 7B (0.1–0.2 points) are close to the noise between the
+  dev-tuned and cross-validated results.
+- Scoring is one forward pass per candidate (about 8 candidates per utterance) with no
+  generation, so a 3B model quantised to 4 bits (about 2 GB) can run on a phone. The whole
+  correction step can stay on the device; no text has to leave it.
+- Smaller models get a smaller tuned LLM weight relative to the other features (3B: llm 0.2,
+  agree 1, dec 0.1, nw 1; 7B: llm 0.75, agree 4, dec 0.5, nw 4); the ratios are similar, so the
+  LLM's share of the decision is about the same.

@@ -33,8 +33,10 @@ are in every experiment README.
 On the strict test subset (798 sentences with no near-copy in the LM's external text) the
 best system reads 9.0% voiced / 16.2% silent. Every setting (decoder weights, blank penalty,
 reranker weights) was chosen on dev validation; a 2-fold cross-validation over test sessions
-gives the same result within 0.1 points. Letting the LLM rewrite the candidates instead
-(Qwen2.5-7B) ties voting at 18.0% silent but invents words in about 12% of outputs.
+gives the same result within 0.1 points. A 3B LLM keeps almost all of the gain
+(8.5% / 15.4%) and even a 0.5B model most of it (8.8% / 15.6%), so the correction step can run
+on a phone. Letting the LLM rewrite the candidates instead (Qwen2.5-7B) ties voting at 18.0%
+silent but invents words in about 12% of outputs.
 Seed spread of the greedy result: about 0.1 points. The comparison with the paper is not like
 for like: the paper decodes greedily without an LM.
 

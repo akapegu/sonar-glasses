@@ -145,3 +145,29 @@ Full system on test (strict = the 798 sentences with no near-copy in the LM text
 - This is below SoniGAN's full system (14.9% silent, with synthetic data, 160 sessions and an
   ensemble), though test subsets and scoring details differ.
 - Cost: about $25 for three seeds (3 × 2× RTX PRO 4500 for 5.5 h) plus $0.10 for decoding.
+
+### On-device setup: one model + its top-10 + a 3B LLM
+
+What would run on the glasses or a phone: **one** crossCon model, its 10 best LM-decoded
+candidates, and Qwen2.5-3B picking one of them (`single_model_rerank.sh`). With one model there
+is no agreement between models, so the reranker weights were re-tuned on dev validation with a
+single-model pool (`baseline_vs_dev` alone and its top-10): `llm 0.2, agree 0.5, dec 0.1, nw 1`.
+They were then applied to each seed separately. Test, Whisper WER:
+
+| Setup | Voiced | Silent |
+| --- | --- | --- |
+| 1 model + LM (top-1), mean of 3 seeds | 8.59% (8.67 / 8.55 / 8.54) | 16.93% (16.54 / 16.97 / 17.27) |
+| **1 model + top-10 + 3B LLM picks**, mean of 3 seeds | **8.29%** (8.43 / 8.16 / 8.27) | **16.61%** (16.25 / 16.64 / 16.94) |
+| same, 2-fold session CV | 8.20% | 16.59% |
+| 3 models + top-10 + 3B LLM picks | 7.21% | 14.15% |
+
+- On one device the LLM adds only about 0.3 points (top-1 → reranked). Most of the 3-model
+  system's gain (another −1.1 voiced, −2.5 silent) comes from having **several independently
+  trained models**: their errors differ, so the right word is often among their outputs even
+  when it is not in one model's top 10.
+- The realistic on-device number is therefore **8.3% voiced / 16.6% silent**. Running 2–3 small
+  models on the device, or distilling the 3-seed ensemble into one model, is the way to close
+  the gap to 7.2 / 14.0.
+
+Examples from the 3-model system: [test_examples.md](test_examples.md) (40 random sentences,
+voiced and silent side by side).

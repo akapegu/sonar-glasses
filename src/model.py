@@ -140,8 +140,8 @@ class CrossConHead(nn.Module):
         positive = same step, negatives = every other valid step in the batch."""
         e, s = h[valid].float(), tgt[valid].float()
         n = e.shape[0]
-        if n < 2:
-            return h.sum() * 0.0, 0
+        if n < 2:  # keep every head parameter in the graph (DDP expects gradients for all of them)
+            return h.sum() * 0.0 + sum(p.sum() for p in self.parameters()) * 0.0, 0
         if n > max_pairs:
             keep = torch.randperm(n, device=e.device)[:max_pairs]
             e, s, n = e[keep], s[keep], max_pairs

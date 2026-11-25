@@ -37,7 +37,10 @@ gives the same result within 0.1 points. A 3B LLM keeps almost all of the gain
 (8.5% / 15.4%) and even a 0.5B model most of it (8.8% / 15.6%), so the correction step can run
 on a phone. Letting the LLM rewrite the candidates instead (Qwen2.5-7B) ties voting at 18.0%
 silent but invents words in about 12% of outputs.
-Seed spread of the greedy result: about 0.1 points. The comparison with the paper is not like
+Seed spread of the greedy result: about 0.1 points.
+**Next acoustic-model gain (40-epoch dev runs, 2026-11-25):** adding a crossCon loss towards HuBERT
+features of the voiced audio lowers dev validation WER from 35.1% to 30.2% (voiced −5.6, silent
+−4.2); a Transformer encoder (5a) was worse. See [07_transformer_crosscon](experiments/07_transformer_crosscon). The comparison with the paper is not like
 for like: the paper decodes greedily without an LM.
 
 ## Layout
@@ -73,6 +76,7 @@ experiments/
   04_lm_decoding/          phase A: n-gram LM beam search, external text, leakage filter
   05_llm_combination/      phase B: ROVER voting, LLM correction and reranking, LoRA fine-tuning
   06_phoneme_analysis/     phoneme error rate, per-sound recall, confusions, where deletions happen
+  07_transformer_crosscon/ step 5: Transformer encoder (worse) and crossCon loss to HuBERT features (-4.9)
 data/ cache/ runs/         local data, preprocessing cache and run outputs (gitignored)
 ```
 

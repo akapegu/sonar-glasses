@@ -97,3 +97,51 @@ Dev validation, mean WER (our normalisation):
 Next: a full 200-epoch run of the final recipe + crossCon on sessions 1–140 (targets rebuilt with
 `--split final`), then 3 seeds, the blank-penalty decoding and the reranker on top. That is the
 path to a new headline; it waits for a go-ahead (about $25–30 on A100s for 3 seeds).
+
+## Full runs: final recipe + crossCon, 3 seeds (test)
+
+`configs/crosscon_final.yaml` on sessions 1–140, targets rebuilt for the final split
+(`make_targets.py --split final`: 13,946 of 13,969 training utterances), one seed per pod on
+2× RTX PRO 4500 (about 105 s per epoch), launched with `run_final_cc.sh <seed> [lead]`. Training
+was stopped at epochs 181–183 of 200: the learning rate was down to 1.5% of its peak and the
+previous recipe changed by at most 0.2 points over its last 20 epochs. Decoding and combination
+with `decode_rerank_cc.sh`, every setting carried over unchanged from dev tuning on the previous
+models (alpha 0.75, beta 1.5, blank penalty 2.0; reranker weights `rerank_val_a0.75_b1.5_bp2.0*`).
+
+Greedy, no LM (Whisper WER, ours in brackets):
+
+| Seed (last epoch) | Voiced | Silent |
+| --- | --- | --- |
+| 0 (182) | 15.88% (16.85%) | 27.66% (29.02%) |
+| 1 (183) | 16.20% (17.13%) | 27.73% (28.89%) |
+| 2 (181) | 15.80% (16.78%) | 27.90% (29.31%) |
+| **mean** | **15.96%** | **27.76%** |
+| previous final recipe, mean of 3 | 18.06% | 29.37% |
+| paper | 15.8% | 26.3% |
+
+crossCon gains 2.1 points voiced and 1.6 silent greedy at full length (4.9 on dev at 40 epochs:
+the reference catches up late, as expected). Voiced now matches the paper; silent is 1.5 points
+behind it, down from 3.1.
+
+Full system on test (strict = the 798 sentences with no near-copy in the LM text):
+
+| Method | Voiced | Silent | Strict V / S | Perfect silent sentences |
+| --- | --- | --- | --- | --- |
+| seed 0 + external LM + blank penalty | 8.67% (9.28%) | 16.54% (17.50%) | 9.3 / 17.4 | 32.5% |
+| seeds 1 / 2, same | 8.55% / 8.54% | 16.97% / 17.27% | 9.2 / 17.9, 9.2 / 18.3 | |
+| ROVER over 3 seeds | 7.82% (8.36%) | 15.25% (16.13%) | 8.4 / 16.1 | 34.8% |
+| rerank, no LLM | 7.77% (8.31%) | 15.19% (16.11%) | 8.3 / 16.1 | 34.7% |
+| **rerank + Qwen2.5-7B** | **7.23%** (7.77%) | **14.04%** (14.98%) | **7.7 / 14.9** | **38.2%** |
+| rerank + Qwen2.5-3B | 7.21% (7.73%) | 14.15% (15.11%) | 7.7 / 14.9 | 38.3% |
+| rerank + 7B, 2-fold session CV | 7.20% (7.71%) | 14.11% (15.02%) | 7.7 / 15.0 | 38.1% |
+| previous best (no crossCon), rerank + 7B | 8.48% (9.08%) | 15.29% (16.23%) | 9.0 / 16.2 | 35.2% |
+
+- **New best: 7.2% voiced / 14.0% silent** (strict 7.7 / 14.9), −1.25 / −1.25 against the previous
+  best. The gain from crossCon survives the LM, voting and reranking almost undiminished.
+- A single crossCon model with the LM (8.6 / 16.5) is about level with the previous three-seed
+  reranked system on voiced.
+- The 3B reranker matches the 7B (7.21 / 14.15), so the correction step can run on a phone.
+- No output contains a word outside the candidates.
+- This is below SoniGAN's full system (14.9% silent, with synthetic data, 160 sessions and an
+  ensemble), though test subsets and scoring details differ.
+- Cost: about $25 for three seeds (3 × 2× RTX PRO 4500 for 5.5 h) plus $0.10 for decoding.

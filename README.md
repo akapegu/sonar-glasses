@@ -5,11 +5,12 @@ on the public SoniSpeech dataset: eyeglasses with two speakers and two microphon
 inaudible FMCW chirps (18–39 kHz) and read lip and jaw movement from the echoes.
 
 **Status (2026-11-25).** The baseline is reproduced to within about 2.5–3 points of the paper
-(greedy decoding, no language model; three seeds agree to 0.1 points). On top of it: a 4-gram
-language model trained on the transcripts plus leakage-filtered conversational text, a blank
-penalty in the decoder, and an LLM that picks one candidate from three seeds' outputs (it
-never rewrites, so it cannot invent words). Together they take test WER to **8.5% voiced /
-15.3% silent**.
+(greedy decoding, no language model; three seeds agree to 0.1 points). A crossCon loss towards
+HuBERT features of the voiced audio then brings greedy test WER to the paper's level on voiced
+(16.0% vs 15.8%) and within 1.5 points on silent. On top of it: a 4-gram language model trained on
+the transcripts plus leakage-filtered conversational text, a blank penalty in the decoder, and an
+LLM that picks one candidate from three seeds' outputs (it never rewrites, so it cannot invent
+words). Together they take test WER to **7.2% voiced / 14.0% silent**.
 
 ## Headline results (test set, 1,000 sentences per mode)
 
@@ -27,20 +28,21 @@ are in every experiment README.
 | Ours, final recipe + 4-gram LM with external conversational text | 11.1% | 19.6% | [04_lm_decoding](experiments/04_lm_decoding) |
 | Ours, ROVER vote over 3 seeds (each + external-text LM) | 10.2% | 18.0% | [05_llm_combination](experiments/05_llm_combination) |
 | Ours, final recipe + external-text LM + blank penalty (mean of 3 seeds) | 10.4% | 18.1% | [04_lm_decoding](experiments/04_lm_decoding) |
-| **Ours, 3 seeds (LM + blank penalty), LLM picks one candidate** | **8.5%** | **15.3%** | [05_llm_combination](experiments/05_llm_combination) |
+| Ours, 3 seeds (LM + blank penalty), LLM picks one candidate | 8.5% | 15.3% | [05_llm_combination](experiments/05_llm_combination) |
+| Ours, final recipe + crossCon, greedy, mean of 3 seeds | 16.0% | 27.8% | [07_transformer_crosscon](experiments/07_transformer_crosscon) |
+| **Ours, crossCon, 3 seeds (LM + blank penalty), LLM picks one candidate** | **7.2%** | **14.0%** | [07_transformer_crosscon](experiments/07_transformer_crosscon) |
 | SoniGAN full system (synthetic data, crossCon, 160 sessions, LM, LLM, ensemble) | — | 14.9% | — |
 
 On the strict test subset (798 sentences with no near-copy in the LM's external text) the
-best system reads 9.0% voiced / 16.2% silent. Every setting (decoder weights, blank penalty,
+best system reads 7.7% voiced / 14.9% silent. Every setting (decoder weights, blank penalty,
 reranker weights) was chosen on dev validation; a 2-fold cross-validation over test sessions
-gives the same result within 0.1 points. A 3B LLM keeps almost all of the gain
-(8.5% / 15.4%) and even a 0.5B model most of it (8.8% / 15.6%), so the correction step can run
-on a phone. Letting the LLM rewrite the candidates instead (Qwen2.5-7B) ties voting at 18.0%
+gives the same result within 0.1 points. A 3B LLM does as well as the 7B
+(7.2% / 14.2% with crossCon; before crossCon even a 0.5B model kept most of the gain), so the
+correction step can run on a phone. Letting the LLM rewrite the candidates instead (Qwen2.5-7B) ties voting at 18.0%
 silent but invents words in about 12% of outputs.
 Seed spread of the greedy result: about 0.1 points.
-**Next acoustic-model gain (40-epoch dev runs, 2026-11-25):** adding a crossCon loss towards HuBERT
-features of the voiced audio lowers dev validation WER from 35.1% to 30.2% (voiced −5.6, silent
-−4.2); a Transformer encoder (5a) was worse. See [07_transformer_crosscon](experiments/07_transformer_crosscon). The comparison with the paper is not like
+crossCon was chosen on 40-epoch dev runs (35.1% → 30.2% dev validation WER); a Transformer
+encoder (5a) was worse. See [07_transformer_crosscon](experiments/07_transformer_crosscon). The comparison with the paper is not like
 for like: the paper decodes greedily without an LM.
 
 ## Layout
